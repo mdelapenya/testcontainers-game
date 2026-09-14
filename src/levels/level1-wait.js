@@ -211,7 +211,7 @@ class WaitStrategiesLevel {
       const on = mine && fires != null && this.clock >= fires;
       const bx = 96 + i * 78;
       panel(ctx, bx, 328, 74, 26, {
-        fill: on ? 'rgba(59,178,115,.9)' : 'rgba(8,26,46,.55)',
+        fill: on ? 'rgba(59,178,115,.9)' : 'rgba(41,26,63,.55)',
         stroke: mine ? C.cream : 'rgba(255,255,255,.2)',
         radius: 8,
       });
@@ -227,7 +227,7 @@ class WaitStrategiesLevel {
     const y = 120;
     const w = 500;
     const h = 200;
-    panel(ctx, x, y, w, h, { fill: 'rgba(8,26,46,.88)', radius: 12 });
+    panel(ctx, x, y, w, h, { fill: 'rgba(41,26,63,.88)', radius: 12 });
     text(ctx, `$ docker logs -f ${this.spec.service}`, x + 16, y + 26, {
       size: 12, weight: 600, color: C.teal, font: MONO,
     });
@@ -242,7 +242,7 @@ class WaitStrategiesLevel {
       }
       text(ctx, truncate(line.text, 58), x + 16, ly, {
         size: 11.5, weight: isReady ? 700 : 400, font: MONO,
-        color: isReady ? C.green : 'rgba(247,241,227,.72)',
+        color: isReady ? C.green : 'rgba(247,249,253,.72)',
       });
     });
     ctx.restore();
@@ -264,7 +264,7 @@ class WaitStrategiesLevel {
 
   drawChoice(ctx) {
     const W = 960;
-    panel(ctx, 40, 348, W - 80, 158, { fill: 'rgba(8,26,46,.9)', radius: 14 });
+    panel(ctx, 40, 348, W - 80, 158, { fill: 'rgba(41,26,63,.9)', radius: 14 });
     text(ctx, `HOW SHOULD TESTCONTAINERS WAIT FOR ${this.spec.service.toUpperCase()}?`, W / 2, 374, {
       size: 13, weight: 800, color: C.teal, align: 'center', letterSpacing: '2px',
     });
@@ -281,7 +281,7 @@ class WaitStrategiesLevel {
       });
       text(ctx, s.name, x + 42, y + 28, { size: 13.5, weight: 700, color: C.cream });
       wrap(s.hint, 30).slice(0, 3).forEach((line, n) => {
-        text(ctx, line, x + 13, y + 52 + n * 14, { size: 10, weight: 400, color: 'rgba(247,241,227,.7)' });
+        text(ctx, line, x + 13, y + 52 + n * 14, { size: 10, weight: 400, color: 'rgba(247,249,253,.7)' });
       });
       text(ctx, s.caption, x + 13, y + 94, { size: 10, weight: 600, color: C.amber });
       return { strategy: s.key, x, y, w, h };
@@ -292,12 +292,12 @@ class WaitStrategiesLevel {
     const W = 960;
     const s = STRATEGIES[this.strategy];
     const limit = timeoutAt(this.spec);
-    panel(ctx, 80, 372, W - 160, 120, { fill: 'rgba(8,26,46,.9)', radius: 14 });
+    panel(ctx, 80, 372, W - 160, 120, { fill: 'rgba(41,26,63,.9)', radius: 14 });
 
     text(ctx, 'WAITING', 110, 402, { size: 12, weight: 800, color: C.teal, letterSpacing: '2px' });
     text(ctx, s.call, 110, 428, { size: 14, weight: 600, color: C.cream, font: MONO });
     text(ctx, `container uptime ${this.clock.toFixed(1)}s`, 110, 458, {
-      size: 11.5, weight: 500, color: 'rgba(247,241,227,.65)', font: MONO,
+      size: 11.5, weight: 500, color: 'rgba(247,249,253,.65)', font: MONO,
     });
 
     const dots = '.'.repeat(1 + Math.floor(this.t * 3) % 3);
@@ -306,7 +306,7 @@ class WaitStrategiesLevel {
     });
     meter(ctx, W - 410, 440, 300, 10, Math.min(1, this.clock / limit), { color: C.teal });
     text(ctx, 'you are not doing anything here — that is the point', W - 110, 470, {
-      size: 10.5, weight: 500, color: 'rgba(247,241,227,.5)', align: 'right',
+      size: 10.5, weight: 500, color: 'rgba(247,249,253,.5)', align: 'right',
     });
   }
 
@@ -316,12 +316,12 @@ class WaitStrategiesLevel {
     const tone = TONE[o.verdict];
     drawBanner(ctx, W, 186, TITLE[o.verdict], this.detail(), tone);
 
-    panel(ctx, 80, 366, W - 160, 136, { fill: 'rgba(8,26,46,.92)', radius: 14 });
+    panel(ctx, 80, 366, W - 160, 136, { fill: 'rgba(41,26,63,.92)', radius: 14 });
     text(ctx, STRATEGIES[this.strategy].call, 108, 396, {
       size: 13, weight: 700, color: tone, font: MONO,
     });
     wrap(o.why, 86).slice(0, 3).forEach((line, i) => {
-      text(ctx, line, 108, 420 + i * 18, { size: 12, weight: 400, color: 'rgba(247,241,227,.85)' });
+      text(ctx, line, 108, 420 + i * 18, { size: 12, weight: 400, color: 'rgba(247,249,253,.85)' });
     });
 
     const best = bestStrategy(this.spec);
@@ -335,7 +335,7 @@ class WaitStrategiesLevel {
       });
     }
     text(ctx, 'space or tap to continue', W - 108, 484, {
-      size: 11, weight: 600, color: 'rgba(247,241,227,.45)', align: 'right',
+      size: 11, weight: 600, color: 'rgba(247,249,253,.45)', align: 'right',
     });
   }
 

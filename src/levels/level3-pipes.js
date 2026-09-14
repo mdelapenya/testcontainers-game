@@ -278,7 +278,7 @@ class PipeDreamLevel {
   /** The test bench on the host side, wired into the first cell. */
   drawHost(ctx) {
     const y = this.gy + this.spec.srcRow * this.cell + this.cell / 2;
-    panel(ctx, 40, 120, 196, 104, { fill: 'rgba(8,26,46,.92)', radius: 12 });
+    panel(ctx, 40, 120, 196, 104, { fill: 'rgba(41,26,63,.92)', radius: 12 });
     text(ctx, 'YOUR TEST · THE HOST', 56, 142, { size: 11, weight: 800, color: C.slate, font: MONO });
     text(ctx, '@Test void queries()', 56, 164, { size: 12, weight: 600, color: C.cream, font: MONO });
     text(ctx, `db.getMappedPort(${this.spec.port})`, 56, 184, { size: 12, weight: 600, color: C.cream, font: MONO });
@@ -294,7 +294,7 @@ class PipeDreamLevel {
     ctx.lineTo(this.gx + 4, y);
     ctx.stroke();
     ctx.lineWidth = 8;
-    ctx.strokeStyle = wet ? C.sea : 'rgba(247,241,227,.7)';
+    ctx.strokeStyle = wet ? C.sea : 'rgba(247,249,253,.7)';
     ctx.beginPath();
     ctx.moveTo(236, y);
     ctx.lineTo(this.gx + 4, y);
@@ -305,7 +305,7 @@ class PipeDreamLevel {
   drawBoard(ctx) {
     const { cols, rows } = this.spec;
     panel(ctx, this.gx - 8, this.gy - 8, cols * this.cell + 16, rows * this.cell + 16, {
-      fill: 'rgba(8,26,46,.86)', radius: 14,
+      fill: 'rgba(41,26,63,.86)', radius: 14,
     });
     for (let y = 0; y < rows; y++) {
       for (let x = 0; x < cols; x++) this.drawCell(ctx, x, y);
@@ -331,7 +331,7 @@ class PipeDreamLevel {
     const fresh = this.fresh.some((p) => p.x === x && p.y === y);
 
     roundRect(ctx, px + 2, py + 2, size - 4, size - 4, 8);
-    ctx.fillStyle = wet ? 'rgba(42,156,201,.16)' : 'rgba(255,255,255,.05)';
+    ctx.fillStyle = wet ? 'rgba(23,166,178,.16)' : 'rgba(255,255,255,.05)';
     ctx.fill();
 
     ctx.save();
@@ -340,7 +340,7 @@ class PipeDreamLevel {
     ctx.strokeStyle = C.ink;
     strokeArms(ctx, cell.mask, cx, cy, size);
     ctx.lineWidth = Math.max(5, size * 0.17);
-    ctx.strokeStyle = wet ? C.sea : 'rgba(247,241,227,.8)';
+    ctx.strokeStyle = wet ? C.sea : 'rgba(247,249,253,.8)';
     if (fresh && this.phase === 'flow') {
       ctx.globalAlpha = 0.5 + 0.5 * Math.min(1, this.fillT / L3.FILL_TIME);
     }
@@ -361,7 +361,7 @@ class PipeDreamLevel {
     });
     const chip = `published :${this.spec.port}`;
     const chipW = chip.length * 6.6 + 18;
-    panel(ctx, wx - chipW / 2, this.gy - 30, chipW, 18, { fill: 'rgba(46,196,182,.9)', stroke: 'rgba(8,26,46,.4)', radius: 9 });
+    panel(ctx, wx - chipW / 2, this.gy - 30, chipW, 18, { fill: 'rgba(22,214,199,.9)', stroke: 'rgba(41,26,63,.4)', radius: 9 });
     text(ctx, chip, wx, this.gy - 20, {
       size: 10, weight: 800, color: C.navyDeep, align: 'center', baseline: 'middle', font: MONO,
     });
@@ -370,20 +370,20 @@ class PipeDreamLevel {
       const y0 = top + y * this.cell;
       if (this.grid.isGate(y)) {
         roundRect(ctx, wx - 4, y0 + 6, 8, this.cell - 12, 4);
-        ctx.fillStyle = 'rgba(46,196,182,.25)';
+        ctx.fillStyle = 'rgba(22,214,199,.25)';
         ctx.fill();
         ctx.strokeStyle = C.teal;
         ctx.lineWidth = 1.5;
         ctx.stroke();
         continue;
       }
-      ctx.fillStyle = 'rgba(18,38,58,.96)';
+      ctx.fillStyle = 'rgba(41,26,63,.96)';
       ctx.fillRect(wx - 5, y0, 10, this.cell);
       ctx.save();
       ctx.beginPath();
       ctx.rect(wx - 5, y0, 10, this.cell);
       ctx.clip();
-      ctx.strokeStyle = 'rgba(125,149,171,.5)';
+      ctx.strokeStyle = 'rgba(195,199,230,.5)';
       ctx.lineWidth = 2;
       for (let h = y0 - 10; h < y0 + this.cell + 10; h += 8) {
         ctx.beginPath();
@@ -393,7 +393,7 @@ class PipeDreamLevel {
       }
       ctx.restore();
     }
-    ctx.strokeStyle = 'rgba(125,149,171,.45)';
+    ctx.strokeStyle = 'rgba(195,199,230,.45)';
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(wx, top - 6);
@@ -417,7 +417,7 @@ class PipeDreamLevel {
     ctx.lineTo(x, y);
     ctx.stroke();
     ctx.lineWidth = 8;
-    ctx.strokeStyle = wet ? C.sea : 'rgba(247,241,227,.7)';
+    ctx.strokeStyle = wet ? C.sea : 'rgba(247,249,253,.7)';
     ctx.beginPath();
     ctx.moveTo(x - 30, y);
     ctx.lineTo(x, y);
@@ -431,7 +431,7 @@ class PipeDreamLevel {
   }
 
   drawStrip(ctx) {
-    panel(ctx, STRIP.x, STRIP.y, STRIP.w, STRIP.h, { fill: 'rgba(8,26,46,.95)', radius: 12 });
+    panel(ctx, STRIP.x, STRIP.y, STRIP.w, STRIP.h, { fill: 'rgba(41,26,63,.95)', radius: 12 });
     text(ctx, this.toast.title, STRIP.x + 20, STRIP.y + 24, { size: 15, weight: 800, color: this.toast.tone });
     const lines = wrap(this.toast.body, 88).slice(0, 2);
     lines.forEach((line, i) => {

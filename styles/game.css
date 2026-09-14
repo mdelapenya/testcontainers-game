@@ -1,19 +1,27 @@
-/* ---- design tokens (pulled from the box art) ---- */
+/* ---- Testcontainers site palette; provenance in docs/branding.md ---- */
 :root {
-  --navy-900: #081a2e;
-  --navy-800: #0a1f36;
-  --navy-700: #0e2a47;
-  --navy-600: #14375c;
-  --cream:    #f7f1e3;
-  --sea:      #2a9cc9;
-  --whale:    #3f7fd6;
-  --teal:     #2ec4b6;
+  --tc-aqua: #16d6c7;
+  --tc-topaz: #00bac2;
+  --tc-pacific: #17a6b2;
+  --tc-teal: #027f9e;
+  --tc-eggplant: #291a3f;
+  --tc-plum: #361e5b;
+  --tc-violet: #6638f2;
+  --tc-ghost: #f7f9fd;
+  --tc-mist: #e7eafb;
+  --tc-fog: #c3c7e6;
+
+  --surface: var(--tc-eggplant);
+  --surface-raised: var(--tc-plum);
+  --cream:    var(--tc-ghost);
+  --teal:     var(--tc-aqua);
+  --purple:   var(--tc-violet);
+  --slate:    var(--tc-fog);
+  /* Gameplay states retain distinct success, error, and warning colors. */
   --green:    #3bb273;
   --orange:   #e8833a;
-  --purple:   #8a6bbd;
   --red:      #e05263;
   --amber:    #f4b942;
-  --slate:    #7d95ab;
 
   --space-1: 4px;
   --space-2: 8px;
@@ -26,11 +34,11 @@
   --radius-md: 10px;
   --radius-lg: 16px;
 
-  --ring: 0 0 0 3px rgba(46, 196, 182, .55);
+  --ring: 0 0 0 3px rgba(22, 214, 199, .7);
   --ease: 220ms cubic-bezier(.2, .7, .3, 1);
 
-  --font: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
-  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  --font: "Rubik", system-ui, -apple-system, Arial, sans-serif;
+  --mono: "Roboto Mono", ui-monospace, Menlo, Consolas, monospace;
 }
 
 * { box-sizing: border-box; }
@@ -40,8 +48,8 @@ html, body { margin: 0; padding: 0; }
 body {
   min-height: 100vh;
   background:
-    radial-gradient(1200px 600px at 50% -10%, #17436d 0%, transparent 60%),
-    var(--navy-900);
+    radial-gradient(1200px 600px at 50% -10%, var(--tc-plum) 0%, transparent 60%),
+    var(--surface);
   color: var(--cream);
   font-family: var(--font);
   line-height: 1.5;
@@ -77,12 +85,10 @@ body {
 
 .brand { display: flex; align-items: center; gap: var(--space-3); }
 
-.cube {
-  width: 34px; height: 34px;
+.brand-mark {
+  width: 36px; height: 40px;
   flex: none;
-  background:
-    linear-gradient(135deg, var(--teal) 0 50%, var(--whale) 50% 100%);
-  clip-path: polygon(50% 0, 100% 27%, 100% 73%, 50% 100%, 0 73%, 0 27%);
+  display: block;
 }
 
 .brand h1 {
@@ -122,7 +128,7 @@ body {
 }
 
 .levelnav button:hover:not(:disabled) { background: rgba(255, 255, 255, .13); transform: translateY(-1px); }
-.levelnav button[aria-current="true"] { background: var(--teal); border-color: var(--teal); color: var(--navy-900); font-weight: 600; }
+.levelnav button[aria-current="true"] { background: var(--teal); border-color: var(--teal); color: var(--surface); font-weight: 500; }
 .levelnav button:disabled { opacity: .4; cursor: not-allowed; }
 
 .icon-btn {
@@ -155,7 +161,7 @@ body {
   container-type: inline-size;
   width: 100%;
   aspect-ratio: 16 / 9;
-  background: var(--navy-800);
+  background: var(--surface-raised);
   border: 1px solid rgba(255, 255, 255, .12);
   border-radius: var(--radius-lg);
   overflow: hidden;
@@ -186,7 +192,7 @@ body {
   letter-spacing: .04em;
   padding: 0.55cqi 1.5cqi;
   border-radius: 999px;
-  background: rgba(8, 26, 46, .72);
+  background: rgba(41, 26, 63, .9);
   border: 1px solid rgba(255, 255, 255, .16);
   backdrop-filter: blur(6px);
 }
@@ -200,8 +206,10 @@ body {
   inset: 0;
   display: grid;
   place-items: center;
+  align-items: safe center;
+  overflow-y: auto;
   padding: var(--space-5);
-  background: rgba(8, 26, 46, .82);
+  background: rgba(41, 26, 63, .92);
   backdrop-filter: blur(3px);
   text-align: center;
 }
@@ -230,7 +238,7 @@ body {
   color: var(--teal);
 }
 
-.card p { margin: 0; color: #dbe6f0; font-size: clamp(.88rem, 2.4vw, 1rem); }
+.card p { margin: 0; color: var(--tc-mist); font-size: clamp(.88rem, 2.4vw, 1rem); }
 .card p.small { font-size: .82rem; color: var(--slate); }
 
 .card .takeaway {
@@ -255,9 +263,9 @@ body {
 
 .btn {
   font: inherit;
-  font-weight: 600;
-  color: var(--navy-900);
-  background: var(--teal);
+  font-weight: 500;
+  color: var(--cream);
+  background: var(--tc-violet);
   border: 0;
   border-radius: 999px;
   padding: var(--space-3) var(--space-5);
@@ -265,9 +273,9 @@ body {
   transition: transform var(--ease), filter var(--ease);
 }
 
-.btn:hover { transform: translateY(-2px); filter: brightness(1.08); }
+.btn:hover { transform: translateY(-2px); background: var(--tc-aqua); color: var(--surface); }
 .btn.ghost { background: transparent; color: var(--cream); border: 1px solid rgba(255, 255, 255, .28); }
-.btn.ghost:hover { background: rgba(255, 255, 255, .1); }
+.btn.ghost:hover { background: rgba(255, 255, 255, .1); color: var(--cream); }
 
 .btn-row { display: flex; gap: var(--space-3); flex-wrap: wrap; justify-content: center; }
 
@@ -296,7 +304,7 @@ body {
   touch-action: manipulation;
 }
 
-.touchbar button:active { background: var(--teal); color: var(--navy-900); }
+.touchbar button:active { background: var(--teal); color: var(--surface); }
 
 /* ---- how to ---- */
 .howto h2 {
@@ -322,7 +330,7 @@ body {
 
 .howto-grid h3 { margin: 0 0 var(--space-2); font-size: .95rem; }
 .howto-grid h3 span { color: var(--teal); }
-.howto-grid p { margin: 0; font-size: .85rem; color: #c5d4e2; }
+.howto-grid p { margin: 0; font-size: .85rem; color: var(--tc-mist); }
 .howto-grid article[data-locked="true"] { opacity: .5; }
 
 .keys { font-size: .82rem; color: var(--slate); margin: var(--space-4) 0 0; }
@@ -352,6 +360,8 @@ footer a { color: var(--teal); }
 .rotate-hint { display: none; }
 
 @media (orientation: portrait) and (max-width: 620px) {
+  .stage:has(.overlay:not([hidden])) { min-height: 360px; }
+
   .rotate-hint {
     display: block;
     margin: 0;

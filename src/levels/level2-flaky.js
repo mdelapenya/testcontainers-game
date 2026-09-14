@@ -275,10 +275,10 @@ class FlakyDetectiveLevel {
     const can = this.board.canRerun();
     this.rerunRect = { x, y: 48, w, h: 30 };
     panel(ctx, x, 48, w, 30, {
-      fill: can ? C.teal : 'rgba(13,42,71,.35)', stroke: 'transparent', radius: 8,
+      fill: can ? C.teal : 'rgba(54,30,91,.35)', stroke: 'transparent', radius: 8,
     });
     text(ctx, `RE-RUN (R) · ${this.board.rerunsLeft} left`, x + w / 2, 68, {
-      size: 12, weight: 800, color: can ? C.navyDeep : 'rgba(247,241,227,.55)', align: 'center',
+      size: 12, weight: 800, color: can ? C.navyDeep : 'rgba(247,249,253,.55)', align: 'center',
     });
   }
 
@@ -292,14 +292,14 @@ class FlakyDetectiveLevel {
     const n = this.board.runs.length;
     this.col = Math.min(GRID.maxCol, Math.floor((room + GRID.gap) / n) - GRID.gap);
     this.colStart = left + Math.max(0, Math.round((room - (n * (this.col + GRID.gap) - GRID.gap)) / 2));
-    panel(ctx, GRID.x, top, GRID.w, h, { fill: 'rgba(8,26,46,.95)', radius: 12 });
+    panel(ctx, GRID.x, top, GRID.w, h, { fill: 'rgba(41,26,63,.95)', radius: 12 });
     this.drawArmedColumns(ctx, top, h);
 
     this.board.runs.forEach((run, i) => {
       const cx = this.colX(i) + this.col / 2;
       const seen = i < this.board.revealed;
       text(ctx, `#${run.id}`, cx, top + 22, {
-        size: 11, weight: 700, color: seen ? C.cream : 'rgba(247,241,227,.3)', align: 'center', font: MONO,
+        size: 11, weight: 700, color: seen ? C.cream : 'rgba(247,249,253,.3)', align: 'center', font: MONO,
       });
       RUN_FLAGS.forEach((flag, f) => {
         const on = seen && run.flags[flag.key];
@@ -309,7 +309,7 @@ class FlakyDetectiveLevel {
         });
         text(ctx, flag.short, bx + 5.5, top + 35, {
           size: 8, weight: 800, align: 'center', baseline: 'middle', font: MONO,
-          color: on ? C.navyDeep : 'rgba(247,241,227,.35)',
+          color: on ? C.navyDeep : 'rgba(247,249,253,.35)',
         });
       });
     });
@@ -319,7 +319,7 @@ class FlakyDetectiveLevel {
       const selected = r === this.cursor && this.phase === 'play';
       if (selected) {
         panel(ctx, GRID.x + 8, y + 2, GRID.w - 16, GRID.row - 4, {
-          fill: 'rgba(46,196,182,.16)', stroke: C.teal, radius: 8,
+          fill: 'rgba(22,214,199,.16)', stroke: C.teal, radius: 8,
         });
         panel(ctx, GRID.x + 8, y + 2, 4, GRID.row - 4, {
           fill: C.teal, stroke: 'transparent', radius: 2,
@@ -332,7 +332,7 @@ class FlakyDetectiveLevel {
       }
       text(ctx, truncate(row.name, row.solved ? 20 : 34), GRID.x + 20, y + GRID.row / 2, {
         size: 11.5, weight: row.solved ? 400 : 600, font: MONO, baseline: 'middle',
-        color: row.solved ? 'rgba(247,241,227,.45)' : C.cream,
+        color: row.solved ? 'rgba(247,249,253,.45)' : C.cream,
       });
       if (row.solved) {
         text(ctx, CAUSES[row.cause].name.toLowerCase(), GRID.x + 12 + GRID.label, y + GRID.row / 2, {
@@ -352,7 +352,7 @@ class FlakyDetectiveLevel {
         });
         if (!seen) {
           text(ctx, '?', cx + cw / 2, cy + (GRID.row - 12) / 2, {
-            size: 11, weight: 700, color: 'rgba(247,241,227,.3)', align: 'center', baseline: 'middle',
+            size: 11, weight: 700, color: 'rgba(247,249,253,.3)', align: 'center', baseline: 'middle',
           });
         }
       });
@@ -362,7 +362,7 @@ class FlakyDetectiveLevel {
     const legend = `LIT BADGE = THAT RUN HAD IT ON   ·   `
       + RUN_FLAGS.map((f) => `${f.short} ${f.label}`).join('   ·   ');
     text(ctx, legend, GRID.x + 20, top + h - 12, {
-      size: 10, weight: 600, color: 'rgba(247,241,227,.5)', font: MONO,
+      size: 10, weight: 600, color: 'rgba(247,249,253,.5)', font: MONO,
     });
   }
 
@@ -390,11 +390,11 @@ class FlakyDetectiveLevel {
 
   drawToast(ctx) {
     const y = TOAST_Y;
-    panel(ctx, GRID.x, y, GRID.w, TOAST_H, { fill: 'rgba(8,26,46,.88)', radius: 10 });
+    panel(ctx, GRID.x, y, GRID.w, TOAST_H, { fill: 'rgba(41,26,63,.88)', radius: 10 });
     text(ctx, this.toast.title, GRID.x + 18, y + 17, { size: 13.5, weight: 800, color: this.toast.tone });
     wrap(this.toast.body, 100).slice(0, 2).forEach((line, i) => {
       text(ctx, line, GRID.x + 18, y + 34 + i * 15, {
-        size: 12, weight: 400, color: 'rgba(247,241,227,.8)',
+        size: 12, weight: 400, color: 'rgba(247,249,253,.8)',
       });
     });
   }
@@ -412,7 +412,7 @@ class FlakyDetectiveLevel {
       const x = 40 + i * (w + 10);
       const armed = this.armed === key;
       panel(ctx, x, y, w, 76, {
-        fill: armed ? 'rgba(244,185,66,.22)' : 'rgba(8,26,46,.72)',
+        fill: armed ? 'rgba(244,185,66,.22)' : 'rgba(41,26,63,.72)',
         stroke: armed ? C.amber : 'rgba(255,255,255,.22)',
         radius: 9,
       });
@@ -426,7 +426,7 @@ class FlakyDetectiveLevel {
 
       const flag = RUN_FLAGS.find((f) => f.key === cause.flag);
       text(ctx, flag ? 'RED WHEN THIS IS LIT' : 'RED IN EVERY RUN', x + 11, y + 40, {
-        size: 8, weight: 800, color: 'rgba(247,241,227,.45)', letterSpacing: '1.2px',
+        size: 8, weight: 800, color: 'rgba(247,249,253,.45)', letterSpacing: '1.2px',
       });
       panel(ctx, x + 11, y + 46, flag ? 16 : 22, 18, {
         fill: flag ? C.amber : C.red, stroke: 'transparent', radius: 4,
@@ -436,7 +436,7 @@ class FlakyDetectiveLevel {
         align: 'center', baseline: 'middle', font: MONO,
       });
       text(ctx, flag ? flag.label : 'no pattern to find', x + (flag ? 33 : 39), y + 55, {
-        size: 10, weight: 600, color: 'rgba(247,241,227,.78)', baseline: 'middle',
+        size: 10, weight: 600, color: 'rgba(247,249,253,.78)', baseline: 'middle',
       });
 
       if (armed) {

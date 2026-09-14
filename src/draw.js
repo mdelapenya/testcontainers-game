@@ -1,30 +1,31 @@
 /** Shared canvas art: palette, primitives and the cast (containers, whale, gull). */
 
 const C = {
-  navy:      '#0e2a47',
-  navyDeep:  '#081a2e',
-  cream:     '#f7f1e3',
-  sky1:      '#bfe3f6',
-  sky2:      '#ecf7fd',
-  sea:       '#2a9cc9',
-  seaDeep:   '#1b7fa8',
-  seaDark:   '#13607f',
-  whale:     '#3f7fd6',
-  whaleDark: '#2f66b5',
-  whaleLite: '#8ab8ee',
-  teal:      '#2ec4b6',
+  // Official site colors, mapped to the existing scenery roles (docs/branding.md).
+  navy:      '#361e5b', // plum
+  navyDeep:  '#291a3f', // eggplant
+  cream:     '#f7f9fd', // ghost
+  sky1:      '#d1ebff', // tc-blue-200
+  sky2:      '#edf7ff', // tc-blue-100
+  sea:       '#17a6b2', // pacific
+  seaDeep:   '#027f9e', // teal
+  seaDark:   '#027f9e',
+  whale:     '#6638f2', // violet
+  whaleDark: '#361e5b',
+  whaleLite: '#c3c7e6', // fog
+  teal:      '#16d6c7', // aqua accent
   green:     '#3bb273',
   orange:    '#e8833a',
-  purple:    '#8a6bbd',
+  purple:    '#6638f2',
   red:       '#e05263',
   amber:     '#f4b942',
-  slate:     '#7d95ab',
+  slate:     '#c3c7e6',
   white:     '#ffffff',
-  ink:       '#12263a',
+  ink:       '#291a3f',
 };
 
-const FONT = '"Segoe UI", system-ui, -apple-system, Helvetica, Arial, sans-serif';
-const MONO = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+const FONT = '"Rubik", system-ui, -apple-system, Arial, sans-serif';
+const MONO = '"Roboto Mono", ui-monospace, Menlo, Consolas, monospace';
 
 /** The cast. The first three carry levels 2 and 3; the rest visit level 1. */
 const SERVICES = {
@@ -64,7 +65,7 @@ function text(ctx, str, x, y, opts = {}) {
 }
 
 function panel(ctx, x, y, w, h, opts = {}) {
-  const { fill = 'rgba(8,26,46,.72)', stroke = 'rgba(255,255,255,.16)', radius = 12, lineWidth = 1, alpha = 1 } = opts;
+  const { fill = 'rgba(41,26,63,.72)', stroke = 'rgba(255,255,255,.16)', radius = 12, lineWidth = 1, alpha = 1 } = opts;
   ctx.save();
   ctx.globalAlpha = alpha;
   roundRect(ctx, x, y, w, h, radius);
@@ -128,7 +129,7 @@ function drawClouds(ctx, t, w, horizon) {
 
 function drawHarbour(ctx, w, horizon) {
   ctx.save();
-  ctx.fillStyle = 'rgba(122,158,192,.45)';
+  ctx.fillStyle = 'rgba(195,199,230,.45)';
   // crane gantries
   for (const base of [90, 250, 760]) {
     ctx.fillRect(base, horizon - 96, 7, 96);
@@ -222,7 +223,7 @@ function drawContainer(ctx, x, y, w, h, color, opts = {}) {
   if (label) {
     const plateW = Math.min(w - 12, label.length * 7.2 + 14);
     roundRect(ctx, x + (w - plateW) / 2, y + h / 2 - 10, plateW, 20, 4);
-    ctx.fillStyle = 'rgba(8,26,46,.8)';
+    ctx.fillStyle = 'rgba(41,26,63,.8)';
     ctx.fill();
     text(ctx, label, x + w / 2, y + h / 2 + 1, {
       size: 12, weight: 700, color: C.cream, align: 'center', baseline: 'middle', font: MONO,
@@ -307,7 +308,7 @@ function drawGull(ctx, x, y, t) {
   ctx.beginPath();
   ctx.arc(-11, -7, 5.5, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = '#9fb4c6';
+  ctx.fillStyle = C.slate;
   ctx.beginPath();
   ctx.moveTo(2, -2);
   ctx.quadraticCurveTo(12, -10 - flap, 18, -2);
@@ -351,7 +352,7 @@ function drawBanner(ctx, w, y, title, subtitle, color) {
   ctx.restore();
   const width = Math.min(w - 60, Math.max(480, measured + 48));
   const x = (w - width) / 2;
-  panel(ctx, x, y, width, subtitle ? 84 : 56, { fill: 'rgba(8,26,46,.9)', stroke: color, lineWidth: 2, radius: 14 });
+  panel(ctx, x, y, width, subtitle ? 84 : 56, { fill: 'rgba(41,26,63,.9)', stroke: color, lineWidth: 2, radius: 14 });
   text(ctx, title, w / 2, y + 32, { size: 24, weight: 800, color, align: 'center' });
   if (subtitle) {
     text(ctx, subtitle, w / 2, y + 62, { size: 14, weight: 500, color: C.cream, align: 'center' });

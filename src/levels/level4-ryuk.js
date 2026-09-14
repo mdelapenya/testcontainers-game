@@ -264,7 +264,7 @@ class RyukLevel {
   }
 
   drawSide(ctx) {
-    panel(ctx, SIDE.x, 88, SIDE.w, 88, { fill: 'rgba(8,26,46,.95)', radius: 12 });
+    panel(ctx, SIDE.x, 88, SIDE.w, 88, { fill: 'rgba(41,26,63,.95)', radius: 12 });
     text(ctx, 'YOUR SESSION LABEL', SIDE.x + 16, 110, {
       size: 10, weight: 800, color: C.slate, font: MONO, letterSpacing: '1px',
     });
@@ -272,7 +272,7 @@ class RyukLevel {
     text(ctx, `.session=${this.board.session}`, SIDE.x + 16, 150, { size: 14, weight: 800, color: C.teal, font: MONO });
     text(ctx, 'reap this and nothing else', SIDE.x + 16, 166, { size: 10, weight: 600, color: C.slate });
 
-    panel(ctx, SIDE.x, 188, SIDE.w, 166, { fill: 'rgba(8,26,46,.95)', radius: 12 });
+    panel(ctx, SIDE.x, 188, SIDE.w, 166, { fill: 'rgba(41,26,63,.95)', radius: 12 });
     text(ctx, 'ON THIS HOST', SIDE.x + 16, 210, {
       size: 10, weight: 800, color: C.slate, font: MONO, letterSpacing: '1px',
     });
@@ -286,7 +286,7 @@ class RyukLevel {
     drawGhost(ctx, SIDE.x + 26, 338, 19, C.red, this.t);
     text(ctx, 'a build still running', SIDE.x + 44, 342, { size: 12, weight: 700, color: C.red });
 
-    panel(ctx, SIDE.x, 364, SIDE.w, 52, { fill: 'rgba(8,26,46,.95)', radius: 12 });
+    panel(ctx, SIDE.x, 364, SIDE.w, 52, { fill: 'rgba(41,26,63,.95)', radius: 12 });
     text(ctx, 'LEFT TO REAP', SIDE.x + 16, 386, {
       size: 10, weight: 800, color: C.slate, font: MONO, letterSpacing: '1px',
     });
@@ -300,16 +300,16 @@ class RyukLevel {
     const { cols, rows } = this.board;
     const w = cols * this.cell;
     const h = rows * this.cell;
-    panel(ctx, this.gx - 8, this.gy - 8, w + 16, h + 16, { fill: 'rgba(8,26,46,.94)', radius: 14 });
+    panel(ctx, this.gx - 8, this.gy - 8, w + 16, h + 16, { fill: 'rgba(41,26,63,.94)', radius: 14 });
     for (let y = 0; y < rows; y++) {
       for (let x = 0; x < cols; x++) {
         if (!this.board.isWall(x, y)) continue;
         const px = this.gx + x * this.cell;
         const py = this.gy + y * this.cell;
         roundRect(ctx, px, py, this.cell, this.cell, 3);
-        ctx.fillStyle = '#173d64';
+        ctx.fillStyle = C.navy;
         ctx.fill();
-        ctx.strokeStyle = 'rgba(138,184,238,.18)';
+        ctx.strokeStyle = 'rgba(195,199,230,.18)';
         ctx.lineWidth = 1;
         ctx.stroke();
       }
@@ -368,7 +368,7 @@ class RyukLevel {
   }
 
   drawStrip(ctx) {
-    panel(ctx, STRIP.x, STRIP.y, STRIP.w, STRIP.h, { fill: 'rgba(8,26,46,.95)', radius: 12 });
+    panel(ctx, STRIP.x, STRIP.y, STRIP.w, STRIP.h, { fill: 'rgba(41,26,63,.95)', radius: 12 });
     text(ctx, this.toast.title, STRIP.x + 20, STRIP.y + 24, { size: 15, weight: 800, color: this.toast.tone });
     wrap(this.toast.body, 84).slice(0, 2).forEach((line, i) => {
       text(ctx, line, STRIP.x + 20, STRIP.y + 44 + i * 15, { size: 12, weight: 500, color: C.cream });
@@ -396,7 +396,7 @@ function drawSpoil(ctx, kind, cx, cy, size, color, mine) {
   const s = size;
   ctx.save();
   ctx.lineWidth = 2;
-  ctx.strokeStyle = mine ? C.cream : 'rgba(247,241,227,.45)';
+  ctx.strokeStyle = mine ? C.cream : 'rgba(247,249,253,.45)';
   ctx.fillStyle = color;
   ctx.globalAlpha = mine ? 1 : 0.55;
 
@@ -405,7 +405,7 @@ function drawSpoil(ctx, kind, cx, cy, size, color, mine) {
     ctx.fill();
     ctx.stroke();
     ctx.beginPath();
-    ctx.strokeStyle = 'rgba(8,26,46,.5)';
+    ctx.strokeStyle = 'rgba(41,26,63,.5)';
     for (const off of [-0.18, 0.18]) {
       ctx.moveTo(cx + s * off, cy - s * 0.26);
       ctx.lineTo(cx + s * off, cy + s * 0.26);

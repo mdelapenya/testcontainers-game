@@ -84,6 +84,8 @@ and [Deployment Checks](https://vercel.com/docs/deployment-checks).
 
 - `index.html` — page markup and external asset entry points.
 - `styles/game.css` — shared styles and responsive layouts.
+- `styles/fonts.css`, `public/fonts/` — locally served Rubik and Roboto Mono.
+- `public/brand/`, `public/favicon.svg` — official Testcontainers cube and favicon.
 - `src/main.js` — application startup, menus, and controls.
 - `src/rules.js`, `src/rng.js`, `src/store.js` — game rules and persistence.
 - `src/engine.js`, `src/draw.js`, `src/audio.js` — rendering loop, artwork, and sound.
@@ -91,3 +93,5 @@ and [Deployment Checks](https://vercel.com/docs/deployment-checks).
 - `tests/` — unit tests and browser checks.
 
 This is a fan game about [Testcontainers](https://testcontainers.com).
+Asset sources, palette mappings, and license attribution are documented in
+[docs/branding.md](docs/branding.md).
