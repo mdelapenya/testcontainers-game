@@ -3,6 +3,7 @@
  * All the rules live in rules.js; all the drawing lives in the level scenes.
  */
 
+import { inject } from '@vercel/analytics';
 import { createAudio } from './audio.js';
 import { Engine } from './engine.js';
 import { WaitStrategiesLevel } from './levels/level1-wait.js';
@@ -11,6 +12,9 @@ import { PipeDreamLevel } from './levels/level3-pipes.js';
 import { RyukLevel } from './levels/level4-ryuk.js';
 import { LEVELS, rank, totalScore } from './rules.js';
 import { isUnlocked, load, recordResult, save } from './store.js';
+
+// Initialize Vercel Web Analytics
+inject();
 const SCENES = {
   1: WaitStrategiesLevel, 2: FlakyDetectiveLevel, 3: PipeDreamLevel, 4: RyukLevel,
 };
