@@ -9,7 +9,10 @@ export function isLocalPreviewHost(hostname) {
   if (mapped.startsWith('127.')) return true;
   const parts = mapped.match(/^([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
   if (!parts) return false;
-  return Number.parseInt(parts[1], 16) >> 8 === 127;
+  const upper = Number.parseInt(parts[1], 16);
+  const lower = Number.parseInt(parts[2], 16);
+  const ipv4 = ((upper << 16) | lower) >>> 0;
+  return (ipv4 >>> 24) === 127;
 }
 
 export function initAnalytics(hostname) {
