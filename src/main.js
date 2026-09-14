@@ -13,8 +13,8 @@ import { RyukLevel } from './levels/level4-ryuk.js';
 import { LEVELS, rank, totalScore } from './rules.js';
 import { isUnlocked, load, recordResult, save } from './store.js';
 
-// Initialize Vercel Web Analytics
-inject();
+// Initialize Vercel Web Analytics outside local preview/test hosts.
+if (!['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname)) inject();
 const SCENES = {
   1: WaitStrategiesLevel, 2: FlakyDetectiveLevel, 3: PipeDreamLevel, 4: RyukLevel,
 };
