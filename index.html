@@ -1,0 +1,4546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Testcontainers: The Game — Spin · Test · Clean · Repeat</title>
+<meta name="description" content="A three-level browser game about Testcontainers: nail your wait strategies, manage a container budget, and load the whale without sinking it." />
+<meta name="color-scheme" content="dark" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230e2a47'/><path d='M16 5l9 5.5v11L16 27l-9-5.5v-11z' fill='%232ec4b6'/><path d='M16 5l9 5.5v11L16 27z' fill='%233f7fd6'/></svg>" />
+<style>
+/* ---- design tokens (pulled from the box art) ---- */
+:root {
+  --navy-900: #081a2e;
+  --navy-800: #0a1f36;
+  --navy-700: #0e2a47;
+  --navy-600: #14375c;
+  --cream:    #f7f1e3;
+  --sea:      #2a9cc9;
+  --whale:    #3f7fd6;
+  --teal:     #2ec4b6;
+  --green:    #3bb273;
+  --orange:   #e8833a;
+  --purple:   #8a6bbd;
+  --red:      #e05263;
+  --amber:    #f4b942;
+  --slate:    #7d95ab;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+
+  --ring: 0 0 0 3px rgba(46, 196, 182, .55);
+  --ease: 220ms cubic-bezier(.2, .7, .3, 1);
+
+  --font: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; padding: 0; }
+
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(1200px 600px at 50% -10%, #17436d 0%, transparent 60%),
+    var(--navy-900);
+  color: var(--cream);
+  font-family: var(--font);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.app {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-4) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---- top bar ---- */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.brand { display: flex; align-items: center; gap: var(--space-3); }
+
+.cube {
+  width: 34px; height: 34px;
+  flex: none;
+  background:
+    linear-gradient(135deg, var(--teal) 0 50%, var(--whale) 50% 100%);
+  clip-path: polygon(50% 0, 100% 27%, 100% 73%, 50% 100%, 0 73%, 0 27%);
+}
+
+.brand h1 {
+  font-size: clamp(1.15rem, 3.2vw, 1.6rem);
+  margin: 0;
+  letter-spacing: -.02em;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.brand em {
+  font-style: normal;
+  font-size: .62em;
+  font-weight: 400;
+  color: var(--slate);
+}
+
+.levelnav {
+  display: flex;
+  gap: var(--space-2);
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+
+.levelnav button {
+  font: inherit;
+  font-size: .82rem;
+  color: var(--cream);
+  background: rgba(255, 255, 255, .06);
+  border: 1px solid rgba(255, 255, 255, .14);
+  border-radius: 999px;
+  padding: var(--space-1) var(--space-3);
+  cursor: pointer;
+  transition: background var(--ease), border-color var(--ease), transform var(--ease);
+}
+
+.levelnav button:hover:not(:disabled) { background: rgba(255, 255, 255, .13); transform: translateY(-1px); }
+.levelnav button[aria-current="true"] { background: var(--teal); border-color: var(--teal); color: var(--navy-900); font-weight: 600; }
+.levelnav button:disabled { opacity: .4; cursor: not-allowed; }
+
+.icon-btn {
+  font: inherit;
+  width: 34px; height: 34px;
+  display: grid; place-items: center;
+  color: var(--cream);
+  background: rgba(255, 255, 255, .06);
+  border: 1px solid rgba(255, 255, 255, .14);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background var(--ease);
+}
+
+.icon-btn:hover { background: rgba(255, 255, 255, .13); }
+.icon-btn[aria-pressed="false"] { opacity: .45; }
+
+:where(button, a, canvas):focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+  border-radius: var(--radius-sm);
+}
+
+/* ---- stage ---- */
+.stage {
+  position: relative;
+  /* The HUD floats over a canvas that scales with the stage; sizing it in cqi
+     keeps the two in step. In fixed px it stayed the same size as the board
+     shrank and ended up sitting on top of the canvas chrome on a phone. */
+  container-type: inline-size;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: var(--navy-800);
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .45);
+}
+
+.stage canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: manipulation;
+}
+
+.hud {
+  position: absolute;
+  inset: 1.7cqi 1.7cqi auto;
+  display: flex;
+  align-items: center;
+  gap: 1.2cqi;
+  pointer-events: none;
+}
+
+.hud-spacer { flex: 1; }
+
+.pill {
+  font-size: 1.3cqi;
+  font-weight: 600;
+  letter-spacing: .04em;
+  padding: 0.55cqi 1.5cqi;
+  border-radius: 999px;
+  background: rgba(8, 26, 46, .72);
+  border: 1px solid rgba(255, 255, 255, .16);
+  backdrop-filter: blur(6px);
+}
+
+.pill-level { color: var(--teal); }
+.pill-lives { color: var(--red); letter-spacing: .1em; }
+
+/* ---- overlay ---- */
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--space-5);
+  background: rgba(8, 26, 46, .82);
+  backdrop-filter: blur(3px);
+  text-align: center;
+}
+
+.overlay[hidden] { display: none; }
+
+.card {
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.card h2 {
+  margin: 0;
+  font-size: clamp(1.3rem, 4vw, 2rem);
+  letter-spacing: -.02em;
+}
+
+.card .eyebrow {
+  margin: 0;
+  font-size: .74rem;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--teal);
+}
+
+.card p { margin: 0; color: #dbe6f0; font-size: clamp(.88rem, 2.4vw, 1rem); }
+.card p.small { font-size: .82rem; color: var(--slate); }
+
+.card .takeaway {
+  border-left: 3px solid var(--amber);
+  padding-left: var(--space-3);
+  text-align: left;
+  color: var(--amber);
+  font-size: .88rem;
+}
+
+.card .stats {
+  display: flex;
+  gap: var(--space-5);
+  justify-content: center;
+  flex-wrap: wrap;
+  margin: var(--space-1) 0;
+}
+
+.card .stats div { display: flex; flex-direction: column; }
+.card .stats b { font-size: 1.5rem; line-height: 1.1; }
+.card .stats span { font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; color: var(--slate); }
+
+.btn {
+  font: inherit;
+  font-weight: 600;
+  color: var(--navy-900);
+  background: var(--teal);
+  border: 0;
+  border-radius: 999px;
+  padding: var(--space-3) var(--space-5);
+  cursor: pointer;
+  transition: transform var(--ease), filter var(--ease);
+}
+
+.btn:hover { transform: translateY(-2px); filter: brightness(1.08); }
+.btn.ghost { background: transparent; color: var(--cream); border: 1px solid rgba(255, 255, 255, .28); }
+.btn.ghost:hover { background: rgba(255, 255, 255, .1); }
+
+.btn-row { display: flex; gap: var(--space-3); flex-wrap: wrap; justify-content: center; }
+
+/* ---- touch controls ---- */
+.touchbar {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.touchbar[hidden] { display: none; }
+
+.touchbar button {
+  font: inherit;
+  font-weight: 600;
+  font-size: .85rem;
+  color: var(--cream);
+  background: rgba(255, 255, 255, .08);
+  border: 1px solid rgba(255, 255, 255, .18);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  min-width: 74px;
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+.touchbar button:active { background: var(--teal); color: var(--navy-900); }
+
+/* ---- how to ---- */
+.howto h2 {
+  font-size: .78rem;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--slate);
+  margin: 0 0 var(--space-3);
+}
+
+.howto-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-3);
+}
+
+.howto-grid article {
+  background: rgba(255, 255, 255, .05);
+  border: 1px solid rgba(255, 255, 255, .1);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+}
+
+.howto-grid h3 { margin: 0 0 var(--space-2); font-size: .95rem; }
+.howto-grid h3 span { color: var(--teal); }
+.howto-grid p { margin: 0; font-size: .85rem; color: #c5d4e2; }
+.howto-grid article[data-locked="true"] { opacity: .5; }
+
+.keys { font-size: .82rem; color: var(--slate); margin: var(--space-4) 0 0; }
+
+kbd {
+  font-family: var(--mono);
+  font-size: .78rem;
+  background: rgba(255, 255, 255, .1);
+  border: 1px solid rgba(255, 255, 255, .2);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-sm);
+  padding: 1px 6px;
+  margin: 0 2px;
+}
+
+footer { color: var(--slate); font-size: .8rem; text-align: center; }
+footer a { color: var(--teal); }
+
+@media (max-width: 620px) {
+  .app { padding: var(--space-4) var(--space-3) var(--space-5); gap: var(--space-4); }
+  .levelnav { margin-left: 0; width: 100%; }
+  .levelnav button { flex: 1; }
+}
+
+/* Phones: the 16:9 board is tiny in portrait, so point at the fix and, in
+   landscape, let the board take the whole viewport height. */
+.rotate-hint { display: none; }
+
+@media (orientation: portrait) and (max-width: 620px) {
+  .rotate-hint {
+    display: block;
+    margin: 0;
+    text-align: center;
+    font-size: .8rem;
+    color: var(--slate);
+  }
+}
+
+@media (orientation: landscape) and (max-height: 620px) {
+  .app { padding: var(--space-3) var(--space-4) var(--space-4); gap: var(--space-3); }
+  .brand h1 { font-size: 1rem; }
+  .brand em { display: none; }
+
+  /* One header row only: a wrapped top bar used to push the board off-screen. */
+  .topbar { flex-wrap: nowrap; gap: var(--space-3); }
+  .levelnav { flex-wrap: nowrap; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  .levelnav button { flex: none; white-space: nowrap; }
+  .icon-btn { flex: none; }
+
+  /* Board on the left, touch buttons stacked beside it: a landscape phone has
+     spare width but no spare height. */
+  main {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+  }
+
+  .stage {
+    width: min(100%, calc((100dvh - 112px) * 16 / 9));
+    height: auto;
+    margin-inline: auto;
+  }
+
+  .touchbar { flex-direction: column; flex-wrap: nowrap; }
+  .touchbar button { min-width: 88px; padding: var(--space-2) var(--space-3); }
+
+  .howto { flex-basis: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+  .btn:hover, .levelnav button:hover { transform: none; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <span class="cube" aria-hidden="true"></span>
+      <h1>Testcontainers <em>the game</em></h1>
+    </div>
+    <nav class="levelnav" id="levelnav" aria-label="Levels"></nav>
+    <button class="icon-btn" id="soundBtn" type="button" aria-pressed="true" title="Toggle sound">
+      <span aria-hidden="true">♪</span><span class="sr-only">Toggle sound</span>
+    </button>
+  </header>
+
+  <main>
+    <div class="stage" id="stage">
+      <canvas id="game" width="960" height="540" aria-label="Game board. Full instructions and controls are listed below the board."></canvas>
+
+      <div class="hud" aria-hidden="true">
+        <span class="pill pill-level" id="hudLevel">Level 1</span>
+        <span class="hud-spacer"></span>
+        <span class="pill" id="hudScore">0</span>
+        <span class="pill pill-lives" id="hudLives">♥♥♥</span>
+      </div>
+
+      <div class="overlay" id="overlay"></div>
+      <p class="sr-only" id="live" role="status" aria-live="polite"></p>
+    </div>
+
+    <p class="rotate-hint">Turn your phone sideways for a bigger board.</p>
+
+    <div class="touchbar" id="touchbar" hidden></div>
+
+    <section class="howto">
+      <h2>How to play</h2>
+      <div class="howto-grid" id="howtoGrid"></div>
+      <p class="keys">
+        Keys: <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> pick or spin ·
+        <kbd>Space</kbd> act · <kbd>←</kbd><kbd>→</kbd> move ·
+        <kbd>P</kbd> pause · <kbd>R</kbd> restart level
+      </p>
+    </section>
+  </main>
+
+  <footer>
+    <p>Build · Test · Ship — a fan game about <a href="https://testcontainers.com" rel="noopener">Testcontainers</a>. Your progress is stored locally in this browser.</p>
+  </footer>
+</div>
+<script>
+const __modules = {};
+const __cache = {};
+function __require(id) {
+  if (!(id in __cache)) __cache[id] = __modules[id]();
+  return __cache[id];
+}
+
+__modules['src/rng.js'] = () => {
+/** Deterministic PRNG so runs can be seeded (and tested). */
+
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return function next() {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function randomSeed() {
+  return (Math.random() * 2 ** 32) >>> 0;
+}
+
+/** Uniform float in [min, max). */
+function range(rng, min, max) {
+  return min + rng() * (max - min);
+}
+
+/** Integer in [min, max]. */
+function rangeInt(rng, min, max) {
+  return Math.floor(range(rng, min, max + 1));
+}
+
+function pick(rng, list) {
+  return list[Math.min(list.length - 1, Math.floor(rng() * list.length))];
+}
+
+return { mulberry32, randomSeed, range, rangeInt, pick };
+};
+
+__modules['src/draw.js'] = () => {
+/** Shared canvas art: palette, primitives and the cast (containers, whale, gull). */
+
+const C = {
+  navy:      '#0e2a47',
+  navyDeep:  '#081a2e',
+  cream:     '#f7f1e3',
+  sky1:      '#bfe3f6',
+  sky2:      '#ecf7fd',
+  sea:       '#2a9cc9',
+  seaDeep:   '#1b7fa8',
+  seaDark:   '#13607f',
+  whale:     '#3f7fd6',
+  whaleDark: '#2f66b5',
+  whaleLite: '#8ab8ee',
+  teal:      '#2ec4b6',
+  green:     '#3bb273',
+  orange:    '#e8833a',
+  purple:    '#8a6bbd',
+  red:       '#e05263',
+  amber:     '#f4b942',
+  slate:     '#7d95ab',
+  white:     '#ffffff',
+  ink:       '#12263a',
+};
+
+const FONT = '"Segoe UI", system-ui, -apple-system, Helvetica, Arial, sans-serif';
+const MONO = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+
+/** The cast. The first three carry levels 2 and 3; the rest visit level 1. */
+const SERVICES = {
+  postgres: { label: 'postgres', short: 'PG', color: C.teal,   port: 5432 },
+  redis:    { label: 'redis',    short: 'RD', color: C.orange, port: 6379 },
+  kafka:    { label: 'kafka',    short: 'KF', color: C.purple, port: 9092 },
+  nginx:    { label: 'nginx',    short: 'NX', color: C.green,  port: 80 },
+  keycloak: { label: 'keycloak', short: 'KC', color: C.whale,  port: 8080 },
+  mysql:    { label: 'mysql',    short: 'MY', color: C.amber,  port: 3306 },
+};
+
+function roundRect(ctx, x, y, w, h, r) {
+  const rad = Math.min(r, Math.abs(w) / 2, Math.abs(h) / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rad, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rad);
+  ctx.arcTo(x + w, y + h, x, y + h, rad);
+  ctx.arcTo(x, y + h, x, y, rad);
+  ctx.arcTo(x, y, x + w, y, rad);
+  ctx.closePath();
+}
+
+function text(ctx, str, x, y, opts = {}) {
+  const {
+    size = 16, weight = 600, color = C.cream, align = 'left',
+    baseline = 'alphabetic', font = FONT, alpha = 1, letterSpacing = null,
+  } = opts;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.font = `${weight} ${size}px ${font}`;
+  ctx.fillStyle = color;
+  ctx.textAlign = align;
+  ctx.textBaseline = baseline;
+  if (letterSpacing && 'letterSpacing' in ctx) ctx.letterSpacing = letterSpacing;
+  ctx.fillText(str, x, y);
+  ctx.restore();
+}
+
+function panel(ctx, x, y, w, h, opts = {}) {
+  const { fill = 'rgba(8,26,46,.72)', stroke = 'rgba(255,255,255,.16)', radius = 12, lineWidth = 1, alpha = 1 } = opts;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  roundRect(ctx, x, y, w, h, radius);
+  ctx.fillStyle = fill;
+  ctx.fill();
+  if (stroke) {
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = lineWidth;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function meter(ctx, x, y, w, h, value, opts = {}) {
+  const { color = C.teal, track = 'rgba(255,255,255,.14)', radius = h / 2, danger = 1.01 } = opts;
+  const v = Math.max(0, Math.min(1, value));
+  ctx.save();
+  roundRect(ctx, x, y, w, h, radius);
+  ctx.fillStyle = track;
+  ctx.fill();
+  if (v > 0) {
+    roundRect(ctx, x, y, Math.max(h, w * v), h, radius);
+    ctx.fillStyle = v >= danger ? C.red : color;
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+/* ------------------------------------------------------------------ */
+/* Scenery                                                             */
+/* ------------------------------------------------------------------ */
+
+function drawSky(ctx, w, h, horizon) {
+  const g = ctx.createLinearGradient(0, 0, 0, horizon);
+  g.addColorStop(0, C.sky1);
+  g.addColorStop(1, C.sky2);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, w, horizon);
+}
+
+function drawClouds(ctx, t, w, horizon) {
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,255,255,.85)';
+  const clouds = [
+    { x: 0.12, y: 0.22, s: 1.0, v: 6 },
+    { x: 0.52, y: 0.12, s: 0.7, v: 9 },
+    { x: 0.82, y: 0.28, s: 1.2, v: 4 },
+  ];
+  for (const c of clouds) {
+    const x = ((c.x * w + t * c.v) % (w + 200)) - 100;
+    const y = c.y * horizon;
+    const s = c.s;
+    ctx.beginPath();
+    ctx.arc(x, y, 22 * s, 0, Math.PI * 2);
+    ctx.arc(x + 26 * s, y + 6 * s, 17 * s, 0, Math.PI * 2);
+    ctx.arc(x - 24 * s, y + 8 * s, 14 * s, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawHarbour(ctx, w, horizon) {
+  ctx.save();
+  ctx.fillStyle = 'rgba(122,158,192,.45)';
+  // crane gantries
+  for (const base of [90, 250, 760]) {
+    ctx.fillRect(base, horizon - 96, 7, 96);
+    ctx.fillRect(base + 46, horizon - 96, 7, 96);
+    ctx.fillRect(base - 16, horizon - 104, 104, 9);
+    ctx.fillRect(base + 24, horizon - 140, 7, 40);
+  }
+  // stacked containers on the dock
+  const dock = [
+    [430, C.purple], [472, C.teal], [514, C.orange], [556, C.whale],
+    [451, C.orange], [493, C.purple], [535, C.teal],
+  ];
+  dock.forEach(([x, color], i) => {
+    const row = i < 4 ? 0 : 1;
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = color;
+    ctx.fillRect(x, horizon - 26 - row * 22, 38, 20);
+  });
+  ctx.restore();
+}
+
+function drawSea(ctx, t, w, h, horizon) {
+  const g = ctx.createLinearGradient(0, horizon, 0, h);
+  g.addColorStop(0, C.sea);
+  g.addColorStop(1, C.seaDark);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, horizon, w, h - horizon);
+
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,.22)';
+  ctx.lineWidth = 2;
+  for (let row = 0; row < 4; row++) {
+    const y = horizon + 26 + row * 34;
+    const speed = 22 + row * 10;
+    const amp = 3 + row;
+    ctx.beginPath();
+    for (let x = -20; x <= w + 20; x += 12) {
+      const yy = y + Math.sin((x + t * speed) / 46) * amp;
+      if (x === -20) ctx.moveTo(x, yy);
+      else ctx.lineTo(x, yy);
+    }
+    ctx.globalAlpha = 0.5 - row * 0.08;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/**
+ * A Docker-ish shipping container.
+ * state: 'idle' | 'booting' | 'busy' | 'ghost'
+ */
+function drawContainer(ctx, x, y, w, h, color, opts = {}) {
+  const { label = '', state = 'idle', progress = 0, badge = '', shadow = true } = opts;
+  ctx.save();
+  if (shadow) {
+    ctx.shadowColor = 'rgba(0,0,0,.28)';
+    ctx.shadowBlur = 10;
+    ctx.shadowOffsetY = 4;
+  }
+  if (state === 'ghost') ctx.globalAlpha = 0.35;
+
+  roundRect(ctx, x, y, w, h, 5);
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.shadowColor = 'transparent';
+
+  // corrugated ribs
+  ctx.save();
+  roundRect(ctx, x, y, w, h, 5);
+  ctx.clip();
+  ctx.strokeStyle = 'rgba(0,0,0,.16)';
+  ctx.lineWidth = 2;
+  for (let i = x + 8; i < x + w - 4; i += 9) {
+    ctx.beginPath();
+    ctx.moveTo(i, y + 4);
+    ctx.lineTo(i, y + h - 4);
+    ctx.stroke();
+  }
+  // top and bottom rails
+  ctx.fillStyle = 'rgba(255,255,255,.22)';
+  ctx.fillRect(x, y, w, 4);
+  ctx.fillStyle = 'rgba(0,0,0,.18)';
+  ctx.fillRect(x, y + h - 4, w, 4);
+
+  if (state === 'booting') {
+    ctx.fillStyle = 'rgba(255,255,255,.3)';
+    ctx.fillRect(x, y + h - 9, w * Math.max(0, Math.min(1, progress)), 5);
+  }
+  ctx.restore();
+
+  if (label) {
+    const plateW = Math.min(w - 12, label.length * 7.2 + 14);
+    roundRect(ctx, x + (w - plateW) / 2, y + h / 2 - 10, plateW, 20, 4);
+    ctx.fillStyle = 'rgba(8,26,46,.8)';
+    ctx.fill();
+    text(ctx, label, x + w / 2, y + h / 2 + 1, {
+      size: 12, weight: 700, color: C.cream, align: 'center', baseline: 'middle', font: MONO,
+    });
+  }
+
+  if (badge) {
+    text(ctx, badge, x + w / 2, y - 8, { size: 12, weight: 700, color: C.cream, align: 'center' });
+  }
+  ctx.restore();
+}
+
+function drawWhale(ctx, cx, cy, scale, tilt = 0) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(tilt);
+  ctx.scale(scale, scale);
+
+  // tail
+  ctx.fillStyle = C.whaleDark;
+  ctx.beginPath();
+  ctx.moveTo(88, 2);
+  ctx.quadraticCurveTo(126, -30, 140, -12);
+  ctx.quadraticCurveTo(128, 2, 140, 18);
+  ctx.quadraticCurveTo(124, 30, 88, 16);
+  ctx.closePath();
+  ctx.fill();
+
+  // body
+  ctx.fillStyle = C.whale;
+  ctx.beginPath();
+  ctx.moveTo(-118, 6);
+  ctx.quadraticCurveTo(-118, -44, -40, -48);
+  ctx.quadraticCurveTo(50, -52, 96, -14);
+  ctx.quadraticCurveTo(104, 2, 94, 20);
+  ctx.quadraticCurveTo(40, 40, -40, 38);
+  ctx.quadraticCurveTo(-114, 34, -118, 6);
+  ctx.closePath();
+  ctx.fill();
+
+  // belly
+  ctx.fillStyle = C.whaleLite;
+  ctx.beginPath();
+  ctx.moveTo(-104, 18);
+  ctx.quadraticCurveTo(-30, 44, 70, 22);
+  ctx.quadraticCurveTo(20, 36, -40, 36);
+  ctx.quadraticCurveTo(-92, 34, -104, 18);
+  ctx.closePath();
+  ctx.fill();
+
+  // fin
+  ctx.fillStyle = C.whaleDark;
+  ctx.beginPath();
+  ctx.moveTo(6, 20);
+  ctx.quadraticCurveTo(24, 44, -18, 36);
+  ctx.closePath();
+  ctx.fill();
+
+  // eye + smile
+  ctx.fillStyle = C.ink;
+  ctx.beginPath();
+  ctx.arc(-86, 2, 4.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = C.ink;
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.arc(-92, 8, 16, 0.2, 1.15);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawGull(ctx, x, y, t) {
+  const flap = Math.sin(t * 3) * 4;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.fillStyle = C.white;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 13, 8, -0.12, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(-11, -7, 5.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#9fb4c6';
+  ctx.beginPath();
+  ctx.moveTo(2, -2);
+  ctx.quadraticCurveTo(12, -10 - flap, 18, -2);
+  ctx.quadraticCurveTo(10, 2, 2, 2);
+  ctx.fill();
+  ctx.fillStyle = C.amber;
+  ctx.beginPath();
+  ctx.moveTo(-16, -6);
+  ctx.lineTo(-23, -4);
+  ctx.lineTo(-16, -2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = C.ink;
+  ctx.beginPath();
+  ctx.arc(-12, -8, 1.4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawSplash(ctx, x, y, progress) {
+  const p = Math.max(0, Math.min(1, progress));
+  ctx.save();
+  ctx.globalAlpha = 1 - p;
+  ctx.fillStyle = 'rgba(255,255,255,.9)';
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 7) * Math.PI - Math.PI;
+    const d = 10 + p * 52;
+    ctx.beginPath();
+    ctx.arc(x + Math.cos(a) * d, y + Math.sin(a) * d * 0.6, 5 * (1 - p) + 1.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+/** Centred banner used for round results across levels. */
+function drawBanner(ctx, w, y, title, subtitle, color) {
+  // Grow the plate so a long subtitle never spills over its own background.
+  ctx.save();
+  ctx.font = `500 14px ${FONT}`;
+  const measured = subtitle ? ctx.measureText(subtitle).width : 0;
+  ctx.restore();
+  const width = Math.min(w - 60, Math.max(480, measured + 48));
+  const x = (w - width) / 2;
+  panel(ctx, x, y, width, subtitle ? 84 : 56, { fill: 'rgba(8,26,46,.9)', stroke: color, lineWidth: 2, radius: 14 });
+  text(ctx, title, w / 2, y + 32, { size: 24, weight: 800, color, align: 'center' });
+  if (subtitle) {
+    text(ctx, subtitle, w / 2, y + 62, { size: 14, weight: 500, color: C.cream, align: 'center' });
+  }
+}
+
+return { C, FONT, MONO, SERVICES, roundRect, text, panel, meter, drawSky, drawClouds, drawHarbour, drawSea, drawContainer, drawWhale, drawGull, drawSplash, drawBanner };
+};
+
+__modules['src/rules.js'] = () => {
+/**
+ * Pure game rules — no canvas, no DOM, no timers.
+ * Every level's decisions live here so they can be unit tested in isolation
+ * (see tests/rules.test.js). The scenes only draw the state these produce.
+ */
+
+const { range } = __require('src/rng.js');
+/* ================================================================== */
+/* Level 1 — Wait strategies                                           */
+/* ================================================================== */
+
+/**
+ * The four things people actually do while waiting for a container. Only the
+ * first three are wait strategies; the sleep is here because everyone has
+ * written it at least once.
+ */
+const STRATEGIES = {
+  port: {
+    key: 'port', name: 'Listening port',
+    call: 'Wait.forListeningPort()',
+    hint: 'Continue as soon as the port accepts a socket.',
+    caption: 'fast, and famously a liar',
+  },
+  log: {
+    key: 'log', name: 'Log message',
+    call: 'Wait.forLogMessage(line, times)',
+    hint: 'Continue when the readiness line shows up in the logs.',
+    caption: 'exact, if you know the line',
+  },
+  http: {
+    key: 'http', name: 'HTTP endpoint',
+    call: 'Wait.forHttp(path).forStatusCode(200)',
+    hint: 'Poll an endpoint until the service answers it.',
+    caption: 'robust, costs you a poll interval',
+  },
+  sleep: {
+    key: 'sleep', name: 'Fixed sleep',
+    call: 'Thread.sleep(5000)',
+    hint: 'Wait five seconds and hope for the best.',
+    caption: 'green locally, red on CI',
+  },
+};
+
+/**
+ * One entry per service. `readyAt` is when the service can genuinely serve a
+ * test; `fires[strategy]` is when that strategy would let the test start
+ * (null when the strategy simply does not apply). Everything the player is
+ * scored on derives from those two numbers, so a round has no reflex in it.
+ */
+const CATALOG = [
+  {
+    service: 'postgres', image: 'postgres:16-alpine',
+    ready: 'database system is ready to accept connections',
+    noise: [
+      'starting PostgreSQL 16.2 on x86_64-pc-linux-musl',
+      'listening on IPv4 address "0.0.0.0", port 5432',
+      'database system was shut down at 10:02:11 UTC',
+      'checkpoint starting: end-of-recovery immediate',
+    ],
+    readyAt: 3.0,
+    fires: { port: 1.1, log: 3.0, http: null, sleep: 5.0 },
+    why: {
+      port: 'Postgres opens 5432 for its own bootstrap, then shuts it down and '
+        + 'starts again. The socket is up long before the database will answer you.',
+      log: 'The readiness line is the honest signal — and it is printed twice, '
+        + 'so the module asks for it with withTimes(2).',
+      http: 'Postgres speaks its own wire protocol. There is no HTTP endpoint to poll.',
+      sleep: 'It passes, and it burns two seconds of every test run for nothing.',
+    },
+  },
+  {
+    service: 'redis', image: 'redis:7-alpine',
+    ready: 'Ready to accept connections tcp',
+    noise: [
+      'oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo',
+      'Redis version=7.2.4, bits=64, just started',
+      'Running mode=standalone, port=6379',
+      'Server initialized',
+    ],
+    readyAt: 1.8,
+    fires: { port: 1.65, log: 1.8, http: null, sleep: 5.0 },
+    why: {
+      port: 'Redis binds 6379 before it finishes loading the dataset. The gap is '
+        + 'small on your laptop and exactly wide enough on a busy CI box.',
+      log: '"Ready to accept connections" means it, which is why the module waits for it.',
+      http: 'RESP is not HTTP. The poll would never get a 200.',
+      sleep: 'Three seconds of nothing, on every single test.',
+    },
+  },
+  {
+    service: 'nginx', image: 'nginx:1.27-alpine',
+    ready: 'start worker processes',
+    noise: [
+      'using the "epoll" event method',
+      'nginx/1.27.0',
+      'built by gcc 13.2.1',
+      'OS: Linux 6.6.32-linuxkit',
+    ],
+    readyAt: 1.0,
+    fires: { port: 1.0, log: 1.35, http: 1.6, sleep: 5.0 },
+    why: {
+      port: 'Static nginx serves the moment it binds 80. Here the port really is '
+        + 'the readiness signal, and it is the cheapest one.',
+      log: 'Works, but you paid for a log scan to learn what the socket already told you.',
+      http: 'Also correct, and worth it the day something real is served behind it — '
+        + 'you just pay one poll interval.',
+      sleep: 'Four wasted seconds guarding a container that was up in one.',
+    },
+  },
+  {
+    service: 'keycloak', image: 'quay.io/keycloak/keycloak:25.0',
+    ready: 'Keycloak 25.0.0 on JVM started in 7.2s, listening on :8080',
+    noise: [
+      'Updating the configuration and installing your custom providers',
+      'Importing realm "test" from file',
+      'Hibernate ORM core version 6.4.4.Final',
+      'Database JDBC URL [jdbc:h2:mem:keycloakdb]',
+    ],
+    readyAt: 8.0,
+    fires: { port: 2.4, log: 7.4, http: 8.2, sleep: 5.0 },
+    why: {
+      port: '8080 is bound while the realm import is still running. Your first '
+        + 'token request meets a half-built server.',
+      log: 'The banner prints while the realm import is still running. A log line '
+        + 'only helps when the service publishes it as a readiness contract, and this one is not.',
+      http: '/health/ready is the contract Keycloak publishes for exactly this '
+        + 'question. It is the only signal here that is true when it says so.',
+      sleep: 'Five seconds is not eight. This is the flake that only shows up in CI.',
+    },
+  },
+  {
+    service: 'kafka', image: 'confluentinc/cp-kafka:7.6.0',
+    ready: '[KafkaServer id=1] started (kafka.server.KafkaServer)',
+    noise: [
+      'Awaiting socket connections on 0.0.0.0:9092',
+      'Registered broker 1 at path /brokers/ids/1',
+      'Session establishment complete on zookeeper:2181',
+      '[KafkaServer id=1] starting (kafka.server.KafkaServer)',
+    ],
+    readyAt: 5.2,
+    fires: { port: 1.9, log: 5.2, http: null, sleep: 5.0 },
+    why: {
+      port: '9092 is listening while the broker is still joining the cluster. '
+        + 'Producing to it gets you a metadata error, not a green test.',
+      log: 'The broker says "started" once it means it. Wait for that line.',
+      http: 'The broker port speaks the Kafka protocol, not HTTP.',
+      sleep: 'Five seconds against a 5.2 second boot. You lose that coin flip in CI.',
+    },
+  },
+  {
+    service: 'mysql', image: 'mysql:8.0',
+    ready: 'ready for connections. Version: 8.0.36',
+    noise: [
+      'InnoDB initialization has started',
+      'Initializing database files, this may take a while',
+      'Temporary server started',
+      'Temporary server stopped',
+    ],
+    readyAt: 6.5,
+    fires: { port: 2.2, log: 6.5, http: null, sleep: 5.0 },
+    why: {
+      port: 'The entrypoint starts a temporary server to initialise the data '
+        + 'directory, then stops it. You connect to a database that is about to vanish.',
+      log: 'The second "ready for connections" is the real one — the module counts them.',
+      http: 'MySQL has no HTTP endpoint on 3306.',
+      sleep: 'Six and a half seconds of boot against a five second guess.',
+    },
+  },
+];
+
+const L1 = {
+  ROUNDS: 5,
+  LIVES: 3,
+  /** Dead time past readiness that turns a passing strategy into a slow suite. */
+  SLOW_AFTER: 1.0,
+  /** How long the test waits before it gives up when the strategy never fires. */
+  TIMEOUT_GRACE: 4,
+  /** Wall-clock is compressed so an eight second boot is not eight seconds of game. */
+  PLAY_SPEED: 2.4,
+  PROBE_START: 0.8,
+  PROBE_INTERVAL: 0.6,
+  MAX_POINTS: 300,
+  POINTS_PER_SECOND: 160,
+  MIN_POINTS: 60,
+  SLOW_POINTS: 40,
+};
+
+/** Verdicts that mean the suite went red, and cost a life. */
+const FAILING = ['flaky', 'unsupported'];
+
+/**
+ * What the chosen strategy does to this service. No player timing involved:
+ * the strategy fires when it fires, and the test is green, flaky or slow
+ * because of that.
+ */
+function evaluateChoice(spec, strategy) {
+  const firedAt = spec.fires[strategy];
+  const why = spec.why[strategy];
+
+  if (firedAt == null) {
+    return { strategy, verdict: 'unsupported', firedAt: null, wasted: 0, points: 0, why };
+  }
+
+  const wasted = round3(firedAt - spec.readyAt);
+  if (wasted < 0) {
+    return { strategy, verdict: 'flaky', firedAt, wasted, points: 0, why };
+  }
+  if (wasted > L1.SLOW_AFTER) {
+    return { strategy, verdict: 'slow', firedAt, wasted, points: L1.SLOW_POINTS, why };
+  }
+  return { strategy, verdict: 'green', firedAt, wasted, points: greenPoints(wasted), why };
+}
+
+/** Points for a green run: the less dead time it bought, the better. */
+function greenPoints(wasted) {
+  return Math.max(L1.MIN_POINTS, Math.round(L1.MAX_POINTS - wasted * L1.POINTS_PER_SECOND));
+}
+
+/** The strategy this service deserves: highest scoring, ties broken by speed. */
+function bestStrategy(spec) {
+  return Object.keys(STRATEGIES)
+    .map((key) => evaluateChoice(spec, key))
+    .sort((a, b) => b.points - a.points || a.wasted - b.wasted)[0].strategy;
+}
+
+function costsLife(verdict) {
+  return FAILING.includes(verdict);
+}
+
+/** When the test gives up if the strategy never fires. */
+function timeoutAt(spec) {
+  return round3(spec.readyAt + L1.TIMEOUT_GRACE);
+}
+
+/** How long the round's animation runs, in compressed seconds. */
+function roundLength(spec, outcome) {
+  const end = outcome.firedAt == null ? timeoutAt(spec) : Math.max(outcome.firedAt, spec.readyAt);
+  return round3((end + 0.5) / L1.PLAY_SPEED);
+}
+
+/** Log lines with timestamps: noise before readiness, the real line exactly at it. */
+function buildTimeline(spec, rng) {
+  const logAt = spec.fires.log == null ? spec.readyAt : spec.fires.log;
+  const lines = [];
+  const count = 3 + Math.floor(rng() * 2);
+  for (let i = 0; i < count; i++) {
+    lines.push({
+      t: 0.25 + (logAt - 0.5) * ((i + rng() * 0.6) / count),
+      text: spec.noise[i % spec.noise.length],
+      kind: 'noise',
+    });
+  }
+  lines.push({ t: logAt, text: spec.ready, kind: 'ready' });
+  lines.push({ t: logAt + 0.9, text: 'connection accepted from 172.17.0.1', kind: 'noise' });
+  return lines.sort((a, b) => a.t - b.t);
+}
+
+/** Health-probe pips up to `clock`; the first 200 lands at or after readiness. */
+function probePips(readyAt, clock) {
+  const pips = [];
+  for (let t = L1.PROBE_START; t <= clock + 1e-9; t += L1.PROBE_INTERVAL) {
+    pips.push({ t: round3(t), ok: t >= readyAt });
+  }
+  return pips;
+}
+
+/* ================================================================== */
+/* Level 2 — The flaky detective                                       */
+/* ================================================================== */
+
+/**
+ * What a CI run did differently. A flaky test does not fail at random: it
+ * fails when one of these is true, and the player's job is to spot which.
+ */
+const RUN_FLAGS = [
+  { key: 'parallel', short: 'P', label: 'parallel forks' },
+  { key: 'shared', short: 'S', label: 'one shared database' },
+  { key: 'load', short: 'L', label: 'busy runner' },
+  { key: 'shuffled', short: 'O', label: 'shuffled test order' },
+];
+
+/**
+ * The five verdicts. Four flaky causes, each tied to the condition that
+ * triggers it, plus the honest red: a test that is simply broken.
+ */
+const CAUSES = {
+  broken: {
+    key: 'broken', name: 'Real failure', flag: null,
+    tell: 'Red in every single run.',
+    fix: 'Nothing to quarantine here. The test is right and the code is wrong.',
+  },
+  port: {
+    key: 'port', name: 'Fixed port clash', flag: 'parallel',
+    tell: 'Only red when the suite runs in parallel forks.',
+    fix: 'Somebody called withFixedExposedPort. Two forks, one host port, one loser. '
+      + 'Let Testcontainers map the port and read it back with getMappedPort().',
+  },
+  state: {
+    key: 'state', name: 'Shared state', flag: 'shared',
+    tell: 'Only red when every test shares one database.',
+    fix: 'A test before it left rows behind. Give it its own container, or reset the '
+      + 'schema between tests — a shared container is a shared fixture.',
+  },
+  wait: {
+    key: 'wait', name: 'No wait strategy', flag: 'load',
+    tell: 'Only red when the runner is busy.',
+    fix: 'It passes on an idle laptop and fails on a loaded runner: the classic '
+      + 'readiness race. Give the container a wait strategy instead of luck.',
+  },
+  order: {
+    key: 'order', name: 'Order dependence', flag: 'shuffled',
+    tell: 'Only red when the runner shuffles the test order.',
+    fix: 'This test needs another one to run first. A container per test class makes '
+      + 'the dependency impossible to hide.',
+  },
+};
+
+const L2 = {
+  ROUNDS: 3,
+  LIVES: 3,
+  POINTS_CORRECT: 200,
+  RERUN_BONUS: 60,
+  /**
+   * Columns already on the board when a round opens. Three is the floor for an
+   * honest puzzle: one column tells you nothing, so starting there would force a
+   * guess and charge a life for it.
+   */
+  START_REVEALED: 3,
+  /**
+   * Rows, faulty rows and which causes can appear, per round. A board is
+   * START_REVEALED columns wide plus one per re-run you are allowed to buy, so
+   * the evidence on offer is always enough to name every cause — the bonus is for
+   * not needing all of it.
+   */
+  BOARDS: [
+    { tests: 5, causes: ['broken', 'state'], reruns: 2 },
+    { tests: 6, causes: ['state', 'port', 'broken'], reruns: 3 },
+    { tests: 7, causes: ['wait', 'order', 'port', 'state'], reruns: 4 },
+  ],
+};
+
+/** Plausible-looking test names; the fun is in the pattern, not the noun. */
+const TEST_NAMES = [
+  'OrderRepositoryTest.findsByCustomer',
+  'PaymentServiceIT.refundsAnOrder',
+  'CatalogSearchIT.matchesBySku',
+  'InventoryIT.reservesStock',
+  'CheckoutFlowIT.appliesCoupon',
+  'ShippingRatesIT.quotesOvernight',
+  'AuditLogIT.writesOnDelete',
+  'UserSessionIT.expiresAfterIdle',
+  'WebhookDispatchIT.retriesOnce',
+];
+
+/**
+ * A run matrix where every flag is true somewhere, false somewhere, and no two
+ * flags share a column pattern — otherwise two causes would be indistinguishable
+ * and the board would not be solvable by deduction.
+ *
+ * The guarantee has to hold on the columns the player can actually see, not just
+ * on the finished matrix: `minPrefix` is the number of columns revealed from the
+ * start. Checking that prefix is enough, because extra columns can only tell two
+ * flags apart, never merge them back together.
+ */
+function buildRuns(count, rng, minPrefix = count) {
+  const prefix = Math.max(1, Math.min(minPrefix, count));
+  for (let attempt = 0; attempt < 400; attempt++) {
+    const runs = [];
+    for (let i = 0; i < count; i++) {
+      const flags = {};
+      for (const flag of RUN_FLAGS) flags[flag.key] = rng() < 0.42;
+      runs.push({ id: i + 1, flags });
+    }
+    if (isSolvable(runs.slice(0, prefix))) return runs;
+  }
+  return fallbackRuns(count);
+}
+
+/** Every flag must vary, and no two flags may fire on the same runs. */
+function isSolvable(runs) {
+  const columns = RUN_FLAGS.map((flag) => runs.map((run) => run.flags[flag.key]));
+  for (const column of columns) {
+    if (!column.includes(true) || !column.includes(false)) return false;
+  }
+  for (let i = 0; i < columns.length; i++) {
+    for (let j = i + 1; j < columns.length; j++) {
+      if (columns[i].every((v, k) => v === columns[j][k])) return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Deterministic matrix used when the dice refuse to cooperate. The seeds are four
+ * distinct, non-constant three-bit patterns, so even a three-column board keeps
+ * every flag apart; wider boards repeat them shifted.
+ */
+const FALLBACK_SEEDS = [0b011, 0b101, 0b110, 0b001];
+
+function fallbackRuns(count) {
+  return Array.from({ length: count }, (_, i) => {
+    const flags = {};
+    RUN_FLAGS.forEach((flag, f) => {
+      const seed = FALLBACK_SEEDS[f];
+      flags[flag.key] = i < 3 ? Boolean(seed & (1 << i)) : Boolean(seed & (1 << ((i + f) % 3)));
+    });
+    return { id: i + 1, flags };
+  });
+}
+
+/** Is this test red in this run? Broken is always red; flaky needs its trigger. */
+function isRed(cause, run) {
+  if (!cause) return false;
+  const flag = CAUSES[cause].flag;
+  return flag === null ? true : run.flags[flag];
+}
+
+/**
+ * One board of the level: a matrix of tests by CI runs, most of it hidden.
+ * Re-running reveals one more column and costs budget; accusing a test of a
+ * cause is checked against the hidden truth.
+ */
+class FlakyBoard {
+  constructor({ rng, tests, causes, reruns = 4, runs = reruns + L2.START_REVEALED } = {}) {
+    this.rng = rng || (() => 0.5);
+    this.revealed = Math.min(L2.START_REVEALED, runs);
+    this.runs = buildRuns(runs, this.rng, this.revealed);
+    this.rerunsLeft = reruns;
+    this.mistakes = 0;
+    this.score = 0;
+
+    const names = shuffle(TEST_NAMES.slice(), this.rng).slice(0, tests);
+    const faulty = shuffle(Array.from({ length: tests }, (_, i) => i), this.rng)
+      .slice(0, causes.length);
+    this.rows = names.map((name, i) => ({
+      id: i,
+      name,
+      cause: faulty.includes(i) ? causes[faulty.indexOf(i)] : null,
+      verdict: null,
+      solved: false,
+    }));
+  }
+
+  /** How many faulty tests are hiding in there — the board tells you up front. */
+  get faults() {
+    return this.rows.filter((r) => r.cause).length;
+  }
+
+  get remaining() {
+    return this.rows.filter((r) => r.cause && !r.solved).length;
+  }
+
+  get done() {
+    return this.remaining === 0;
+  }
+
+  /** Red/green for the runs revealed so far. */
+  cells(row) {
+    return this.runs.slice(0, this.revealed).map((run) => isRed(row.cause, run));
+  }
+
+  canRerun() {
+    return this.rerunsLeft > 0 && this.revealed < this.runs.length;
+  }
+
+  /** Spend one rerun to reveal another column of evidence. */
+  rerun() {
+    if (!this.canRerun()) return { ok: false };
+    this.rerunsLeft -= 1;
+    this.revealed += 1;
+    return { ok: true, run: this.runs[this.revealed - 1] };
+  }
+
+  /** Name a cause for a test. Wrong accusations cost a life. */
+  accuse(rowId, cause) {
+    const row = this.rows.find((r) => r.id === rowId);
+    if (!row || row.solved || !CAUSES[cause]) return { ok: false };
+    row.verdict = cause;
+    if (row.cause === cause) {
+      row.solved = true;
+      this.score += L2.POINTS_CORRECT;
+      return { ok: true, correct: true, cause, points: L2.POINTS_CORRECT };
+    }
+    this.mistakes += 1;
+    return { ok: true, correct: false, cause, truth: row.cause, points: 0 };
+  }
+
+  /** Unspent CI minutes are worth points; evidence is not free. */
+  bonus() {
+    return this.rerunsLeft * L2.RERUN_BONUS;
+  }
+}
+
+function shuffle(items, rng) {
+  const out = items.slice();
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+/* ================================================================== */
+/* Level 3 — Pipe Dream                                                */
+/* ================================================================== */
+
+/**
+ * Pipes as bitmasks: which sides of a cell are open. Rotating a piece rotates
+ * its bits, which is the whole physics of this level.
+ */
+const DIRS = [
+  { name: 'n', bit: 1, dx: 0, dy: -1, back: 4 },
+  { name: 'e', bit: 2, dx: 1, dy: 0, back: 8 },
+  { name: 's', bit: 4, dx: 0, dy: 1, back: 1 },
+  { name: 'w', bit: 8, dx: -1, dy: 0, back: 2 },
+];
+
+/** The pieces the generator scatters around the board, as unrotated masks. */
+const PIECES = [3, 6, 12, 9, 5, 10, 7, 14, 13, 11];
+
+const L3 = {
+  ROUNDS: 3,
+  LIVES: 3,
+  /** Seconds the water spends filling one cell. */
+  FILL_TIME: 0.9,
+  POINTS_CONNECT: 250,
+  POINTS_PER_DRY: 15,
+  BOARDS: [
+    { cols: 6, rows: 4, wallX: 3, gates: [1], srcRow: 1, dstRow: 2, lead: 14, port: 5432, service: 'postgres' },
+    { cols: 7, rows: 5, wallX: 3, gates: [1, 3], srcRow: 2, dstRow: 1, lead: 13, port: 6379, service: 'redis' },
+    { cols: 8, rows: 5, wallX: 4, gates: [2], srcRow: 0, dstRow: 4, lead: 12, port: 9092, service: 'kafka' },
+  ],
+};
+
+/** Turn a mask a quarter turn clockwise, `times` times. */
+function rotate(mask, times = 1) {
+  let m = mask & 15;
+  const turns = ((times % 4) + 4) % 4;
+  for (let i = 0; i < turns; i++) m = ((m << 1) | (m >> 3)) & 15;
+  return m;
+}
+
+function opens(mask, bit) {
+  return (mask & bit) !== 0;
+}
+
+function dirOf(bit) {
+  return DIRS.find((d) => d.bit === bit);
+}
+
+/**
+ * The board. The wall between host and Docker network runs down the left edge
+ * of column `wallX`, and pipes may only cross it on a gate row — that gate is
+ * the published port, and there is no other way in.
+ */
+class PipeGrid {
+  constructor({ cols, rows, wallX, gates, srcRow, dstRow, cells }) {
+    this.cols = cols;
+    this.rows = rows;
+    this.wallX = wallX;
+    this.gates = gates.slice();
+    this.srcRow = srcRow;
+    this.dstRow = dstRow;
+    this.cells = cells;
+    this.filled = new Set();
+    this.flowing = false;
+    this.dead = false;
+    this.connected = false;
+  }
+
+  key(x, y) {
+    return y * this.cols + x;
+  }
+
+  inside(x, y) {
+    return x >= 0 && y >= 0 && x < this.cols && y < this.rows;
+  }
+
+  at(x, y) {
+    return this.inside(x, y) ? this.cells[this.key(x, y)] : null;
+  }
+
+  isFilled(x, y) {
+    return this.filled.has(this.key(x, y));
+  }
+
+  isGate(y) {
+    return this.gates.includes(y);
+  }
+
+  /** Does the wall stand between these two horizontally adjacent cells? */
+  crossesWall(x, dx) {
+    return dx === 1 ? x + 1 === this.wallX : x === this.wallX;
+  }
+
+  /** Can water flow out of (x,y) through `bit` into the neighbour? */
+  linked(x, y, bit) {
+    const dir = dirOf(bit);
+    const from = this.at(x, y);
+    const to = this.at(x + dir.dx, y + dir.dy);
+    if (!from || !to) return false;
+    if (!opens(from.mask, bit) || !opens(to.mask, dir.back)) return false;
+    if (dir.dy === 0 && this.crossesWall(x, dir.dx) && !this.isGate(y)) return false;
+    return true;
+  }
+
+  /** Rotating is free, but only while the cell is still dry. */
+  rotateAt(x, y, times = 1) {
+    const cell = this.at(x, y);
+    if (!cell || cell.locked || this.isFilled(x, y)) return false;
+    cell.mask = rotate(cell.mask, times);
+    cell.turns = (cell.turns || 0) + 1;
+    return true;
+  }
+
+  /** The test hands its connection to the first cell; it has to be open to it. */
+  start() {
+    this.flowing = true;
+    const entry = this.at(0, this.srcRow);
+    if (!entry || !opens(entry.mask, 8)) {
+      this.dead = true;
+      return false;
+    }
+    this.filled.add(this.key(0, this.srcRow));
+    this.checkArrival();
+    return true;
+  }
+
+  /** One tick of water: every cell touching the wet set fills at once. */
+  advance() {
+    if (!this.flowing || this.dead || this.connected) return [];
+    const next = [];
+    for (const k of this.filled) {
+      const x = k % this.cols;
+      const y = Math.floor(k / this.cols);
+      for (const dir of DIRS) {
+        if (!this.linked(x, y, dir.bit)) continue;
+        const nk = this.key(x + dir.dx, y + dir.dy);
+        if (!this.filled.has(nk) && !next.includes(nk)) next.push(nk);
+      }
+    }
+    if (!next.length) {
+      this.dead = true;
+      return [];
+    }
+    for (const k of next) this.filled.add(k);
+    this.checkArrival();
+    return next.map((k) => ({ x: k % this.cols, y: Math.floor(k / this.cols) }));
+  }
+
+  /** The container is reached when wet pipe leaves the last column eastwards. */
+  checkArrival() {
+    const exit = this.at(this.cols - 1, this.dstRow);
+    if (exit && opens(exit.mask, 2) && this.isFilled(this.cols - 1, this.dstRow)) {
+      this.connected = true;
+    }
+  }
+
+  /** Is there a complete route right now, water or no water? */
+  hasRoute() {
+    const entry = this.at(0, this.srcRow);
+    if (!entry || !opens(entry.mask, 8)) return false;
+    const seen = new Set([this.key(0, this.srcRow)]);
+    const stack = [[0, this.srcRow]];
+    while (stack.length) {
+      const [x, y] = stack.pop();
+      if (x === this.cols - 1 && y === this.dstRow && opens(this.at(x, y).mask, 2)) return true;
+      for (const dir of DIRS) {
+        if (!this.linked(x, y, dir.bit)) continue;
+        const nx = x + dir.dx;
+        const ny = y + dir.dy;
+        if (seen.has(this.key(nx, ny))) continue;
+        seen.add(this.key(nx, ny));
+        stack.push([nx, ny]);
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Optimistic check: is a winning route still reachable by rotating the dry
+   * cells? Wet pipe is frozen, so a leak can genuinely lock the player out and
+   * we would rather say so than let the clock run down in silence.
+   */
+  canStillWin() {
+    const seen = new Set();
+    const stack = [];
+    const entry = this.at(0, this.srcRow);
+    if (!entry) return false;
+    for (const mask of this.options(0, this.srcRow)) {
+      if (opens(mask, 8)) stack.push({ x: 0, y: this.srcRow, mask });
+    }
+    while (stack.length) {
+      const at = stack.pop();
+      const id = this.key(at.x, at.y) * 16 + at.mask;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      if (at.x === this.cols - 1 && at.y === this.dstRow && opens(at.mask, 2)) return true;
+      for (const dir of DIRS) {
+        if (!opens(at.mask, dir.bit)) continue;
+        if (dir.dy === 0 && this.crossesWall(at.x, dir.dx) && !this.isGate(at.y)) continue;
+        const nx = at.x + dir.dx;
+        const ny = at.y + dir.dy;
+        if (!this.inside(nx, ny)) continue;
+        for (const mask of this.options(nx, ny)) {
+          if (opens(mask, dir.back)) stack.push({ x: nx, y: ny, mask });
+        }
+      }
+    }
+    return false;
+  }
+
+  /** Every mask a cell could show: one if the water already froze it, else four. */
+  options(x, y) {
+    const cell = this.at(x, y);
+    if (!cell) return [];
+    if (this.isFilled(x, y) || cell.locked) return [cell.mask];
+    return [0, 1, 2, 3].map((t) => rotate(cell.mask, t));
+  }
+
+  get dry() {
+    return this.cols * this.rows - this.filled.size;
+  }
+}
+
+/**
+ * Carve a route from the test to the container through one of the gates, fill
+ * the rest of the board with junk pipe, then spin everything out of alignment.
+ * Rotation can never destroy the solution, so every board is always solvable.
+ */
+function buildPipeGrid(spec, rng) {
+  const { cols, rows, wallX, gates, srcRow, dstRow } = spec;
+  const gate = gates[Math.floor(rng() * gates.length)];
+  const route = [
+    ...carve({ cols: wallX, rows }, { x: 0, y: srcRow }, { x: wallX - 1, y: gate }, rng),
+    ...carve({ cols: cols - wallX, rows }, { x: 0, y: gate }, { x: cols - wallX - 1, y: dstRow }, rng)
+      .map((p) => ({ x: p.x + wallX, y: p.y })),
+  ];
+
+  const cells = Array.from({ length: cols * rows }, () => ({ mask: 0, solution: 0, turns: 0, route: false }));
+  const index = (p) => p.y * cols + p.x;
+  route.forEach((p, i) => {
+    const cell = cells[index(p)];
+    cell.route = true;
+    const prev = route[i - 1];
+    const next = route[i + 1];
+    cell.mask |= prev ? between(p, prev) : 8;          // the test comes in from the west
+    cell.mask |= next ? between(p, next) : 2;          // the container is out east
+  });
+
+  for (const cell of cells) {
+    if (!cell.route) cell.mask = PIECES[Math.floor(rng() * PIECES.length)];
+    cell.solution = cell.mask;   // kept for the solver in the tests, never shown
+    cell.mask = rotate(cell.mask, Math.floor(rng() * 4));
+    cell.turns = 0;
+  }
+
+  const grid = new PipeGrid({ ...spec, cells });
+  // A board that opens already connected is not a puzzle: nudge one route piece.
+  if (grid.hasRoute()) {
+    const victim = cells.find((c) => c.route && rotate(c.mask, 1) !== c.mask);
+    if (victim) victim.mask = rotate(victim.mask, 1);
+  }
+  return grid;
+}
+
+/** Which way does `b` lie from `a`? */
+function between(a, b) {
+  return DIRS.find((d) => a.x + d.dx === b.x && a.y + d.dy === b.y).bit;
+}
+
+/** A wandering, self-avoiding walk through one side of the board. */
+function carve(region, from, to, rng) {
+  const seen = new Set([from.y * region.cols + from.x]);
+  const path = [from];
+  const walk = (at) => {
+    if (at.x === to.x && at.y === to.y) return true;
+    const options = shuffle(DIRS.slice(), rng).sort((a, b) => pull(at, a, to) - pull(at, b, to));
+    for (const dir of options) {
+      const next = { x: at.x + dir.dx, y: at.y + dir.dy };
+      if (next.x < 0 || next.y < 0 || next.x >= region.cols || next.y >= region.rows) continue;
+      const k = next.y * region.cols + next.x;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      path.push(next);
+      if (walk(next)) return true;
+      path.pop();
+      seen.delete(k);
+    }
+    return false;
+  };
+  walk(from);
+  return path;
+}
+
+/** Prefer steps that head for the exit, but not so strongly that it is a straight line. */
+function pull(at, dir, to) {
+  const dx = to.x - at.x;
+  const dy = to.y - at.y;
+  return -(dir.dx * Math.sign(dx) + dir.dy * Math.sign(dy));
+}
+
+
+
+/* ================================================================== */
+/* Level 4 — Ryuk                                                      */
+/* ================================================================== */
+
+/**
+ * The host, as a maze. '#' is something you cannot walk through — a daemon
+ * socket, a bind mount, another job's workspace — and '.' is free floor.
+ */
+const HOSTS = [
+  [
+    '#################',
+    '#...............#',
+    '#.##.##...##.##.#',
+    '#.#...#...#...#.#',
+    '#...#.......#...#',
+    '#.#...#...#...#.#',
+    '#.##.##...##.##.#',
+    '#...............#',
+    '#################',
+  ],
+  [
+    '#################',
+    '#...#.......#...#',
+    '#.#.#.#####.#.#.#',
+    '#.#.....#.....#.#',
+    '#.#####.#.#####.#',
+    '#.#.....#.....#.#',
+    '#.#.#.#####.#.#.#',
+    '#...#.......#...#',
+    '#################',
+  ],
+  [
+    '#################',
+    '#.....#...#.....#',
+    '###.#.#.#.#.#.###',
+    '#...#...#...#...#',
+    '#.#####.#.#####.#',
+    '#...#...#...#...#',
+    '###.#.#.#.#.#.###',
+    '#.....#...#.....#',
+    '#################',
+  ],
+];
+
+/** What Testcontainers leaves behind, and what Ryuk is allowed to take. */
+const SPOILS = [
+  { kind: 'container', short: 'C', label: 'container' },
+  { kind: 'network', short: 'N', label: 'network' },
+  { kind: 'volume', short: 'V', label: 'volume' },
+];
+
+const L4 = {
+  ROUNDS: 3,
+  LIVES: 3,
+  POINTS_ITEM: 60,
+  POINTS_PER_SECOND: 4,
+  /**
+   * Seconds per cell. The strays are deliberately slower than you. A maze this
+   * dense puts a junction every cell or two, so the step is also the window you
+   * get to decide at each one: at 0.13 the level was reflex, not routing.
+   */
+  STEP: 0.2,
+  STRAY_STEP: 0.34,
+  /** Clocks are sized for the slower pace — roughly 1.5x the old budgets. */
+  BOARDS: [
+    { host: 0, mine: 12, theirs: 3, strays: 1, seconds: 70 },
+    { host: 1, mine: 14, theirs: 4, strays: 2, seconds: 78 },
+    { host: 2, mine: 16, theirs: 5, strays: 3, seconds: 85 },
+  ],
+};
+
+/** A four-hex session id, the label Ryuk actually matches on. */
+function sessionId(rng) {
+  const hex = '0123456789abcdef';
+  let out = '';
+  for (let i = 0; i < 4; i++) out += hex[Math.floor(rng() * 16)];
+  return out;
+}
+
+/**
+ * One host to clean up. The reaper walks the maze, takes everything carrying
+ * its own session label and must leave every other label alone.
+ */
+class HostBoard {
+  constructor({ rng, host, mine, theirs, strays, seconds } = {}) {
+    const plan = HOSTS[host];
+    this.rows = plan.length;
+    this.cols = plan[0].length;
+    this.walls = new Set();
+    this.floor = [];
+    plan.forEach((line, y) => {
+      [...line].forEach((char, x) => {
+        if (char === '#') this.walls.add(this.key(x, y));
+        else this.floor.push({ x, y });
+      });
+    });
+
+    this.session = sessionId(rng);
+    this.left = seconds;
+    this.reaped = 0;
+    this.mistakes = 0;
+    this.over = false;
+
+    // Every other build on this host gets a label of its own, and none of them
+    // may collide with yours: the whole level is "does this string match mine".
+    const used = new Set([this.session]);
+    const foreign = () => {
+      let id = sessionId(rng);
+      while (used.has(id)) id = sessionId(rng);
+      used.add(id);
+      return id;
+    };
+
+    const open = shuffle(this.floor.slice(), rng);
+    this.reaper = { ...open.pop(), dir: null, next: null };
+    this.items = [];
+    for (let i = 0; i < mine; i++) {
+      const at = open.pop();
+      if (at) this.items.push({ ...at, kind: SPOILS[i % SPOILS.length].kind, mine: true, taken: false });
+    }
+    // Somebody else's resource is a tile you must not step on, so it can never
+    // sit in the one corridor that leads somewhere: park them where removing
+    // the tile still leaves the whole host walkable.
+    const blocked = new Set();
+    for (let i = 0; i < theirs; i++) {
+      const spot = open.findIndex((at) => {
+        blocked.add(this.key(at.x, at.y));
+        const fine = this.walkable(blocked);
+        blocked.delete(this.key(at.x, at.y));
+        return fine;
+      });
+      if (spot < 0) break;
+      const at = open.splice(spot, 1)[0];
+      blocked.add(this.key(at.x, at.y));
+      this.items.push({
+        ...at, kind: SPOILS[(i + 1) % SPOILS.length].kind, mine: false, taken: false, session: foreign(),
+      });
+    }
+    this.strays = [];
+    for (let i = 0; i < strays; i++) {
+      const at = open.pop();
+      if (at) this.strays.push({ ...at, dir: DIRS[Math.floor(rng() * 4)], session: foreign() });
+    }
+    this.rng = rng;
+  }
+
+  key(x, y) {
+    return y * this.cols + x;
+  }
+
+  isWall(x, y) {
+    return x < 0 || y < 0 || x >= this.cols || y >= this.rows || this.walls.has(this.key(x, y));
+  }
+
+  /** Can every floor tile still be reached if these tiles were off limits? */
+  walkable(blocked) {
+    const free = this.floor.filter((at) => !blocked.has(this.key(at.x, at.y)));
+    if (!free.length) return false;
+    const seen = new Set([this.key(free[0].x, free[0].y)]);
+    const stack = [free[0]];
+    while (stack.length) {
+      const at = stack.pop();
+      for (const dir of DIRS) {
+        const nx = at.x + dir.dx;
+        const ny = at.y + dir.dy;
+        const id = this.key(nx, ny);
+        if (this.isWall(nx, ny) || blocked.has(id) || seen.has(id)) continue;
+        seen.add(id);
+        stack.push({ x: nx, y: ny });
+      }
+    }
+    return seen.size === free.length;
+  }
+
+  /** Step the reaper one cell. Returns what it walked into. */
+  moveReaper(dir) {
+    const nx = this.reaper.x + dir.dx;
+    const ny = this.reaper.y + dir.dy;
+    if (this.isWall(nx, ny)) return { moved: false };
+    this.reaper.prev = { x: this.reaper.x, y: this.reaper.y };
+    this.reaper.x = nx;
+    this.reaper.y = ny;
+    this.reaper.dir = dir;
+    return { moved: true, ...this.reap(nx, ny) };
+  }
+
+  /** Take whatever is under the reaper — including what it should not have. */
+  reap(x, y) {
+    const item = this.items.find((i) => !i.taken && i.x === x && i.y === y);
+    if (!item) return {};
+    item.taken = true;
+    if (item.mine) {
+      this.reaped += 1;
+      if (this.remaining === 0) this.over = true;
+      return { item, hit: false };
+    }
+    this.mistakes += 1;
+    return { item, hit: true };
+  }
+
+  /** Strays keep going until the wall stops them, then pick a new way. */
+  stepStrays() {
+    for (const stray of this.strays) {
+      const options = DIRS.filter((d) => !this.isWall(stray.x + d.dx, stray.y + d.dy));
+      if (!options.length) continue;
+      const straight = options.filter((d) => d !== dirOf(stray.dir.back));
+      const pool = straight.length ? straight : options;
+      const ahead = pool.includes(stray.dir);
+      // Hold the line most of the time; a junction is a coin toss.
+      const dir = ahead && this.rng() < 0.7 ? stray.dir : pool[Math.floor(this.rng() * pool.length)];
+      stray.dir = dir;
+      stray.x += dir.dx;
+      stray.y += dir.dy;
+    }
+  }
+
+  /**
+   * Did a stray land on the reaper, or swap places with it? Pass the strays'
+   * positions from before the step to catch the two walking through each other.
+   */
+  strayHit(before = []) {
+    const here = this.reaper;
+    const prev = here.prev;
+    return this.strays.some((stray, i) => {
+      if (stray.x === here.x && stray.y === here.y) return true;
+      const was = before[i];
+      if (!was || !prev) return false;
+      return was.x === here.x && was.y === here.y && stray.x === prev.x && stray.y === prev.y;
+    });
+  }
+
+  tick(dt) {
+    if (this.over) return false;
+    this.left = Math.max(0, this.left - dt);
+    return this.left === 0;
+  }
+
+  get remaining() {
+    return this.items.filter((i) => i.mine && !i.taken).length;
+  }
+
+  get bonus() {
+    return Math.round(this.left) * L4.POINTS_PER_SECOND;
+  }
+}
+
+/** Every floor tile has to be walkable from every other one. */
+function hostIsConnected(plan) {
+  const rows = plan.length;
+  const cols = plan[0].length;
+  const floor = [];
+  plan.forEach((line, y) => [...line].forEach((char, x) => {
+    if (char !== '#') floor.push(`${x},${y}`);
+  }));
+  if (!floor.length) return false;
+  const seen = new Set([floor[0]]);
+  const stack = [floor[0].split(',').map(Number)];
+  while (stack.length) {
+    const [x, y] = stack.pop();
+    for (const dir of DIRS) {
+      const nx = x + dir.dx;
+      const ny = y + dir.dy;
+      if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue;
+      if (plan[ny][nx] === '#') continue;
+      const id = `${nx},${ny}`;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      stack.push([nx, ny]);
+    }
+  }
+  return seen.size === floor.length;
+}
+
+/* ================================================================== */
+/* Progression                                                         */
+/* ================================================================== */
+
+const LEVELS = [
+  {
+    id: 1,
+    name: 'Wait strategies',
+    tagline: 'Know when a container is actually ready',
+    brief: 'A container boots and a test is waiting for it. You pick the wait strategy; Testcontainers runs the test by itself. Choose wrong and the suite is flaky, slow, or stuck.',
+    controls: 'Keys 1 / 2 / 3 / 4 pick a strategy (or tap a card) · any key continues',
+  },
+  {
+    id: 2,
+    name: 'The flaky detective',
+    tagline: 'Tell a broken test from a flaky one',
+    brief: 'A grid of tests by CI runs. Each column is one run, tagged with what that run did: P parallel forks, S one shared database, L busy runner, O shuffled order. Each cause below the grid fails under exactly one of those tags — a broken test fails under all of them. Three runs are on the board from the start, and that is already enough to name every cause: line up the tag that was lit in exactly the runs where the test went red. Re-runs buy you extra columns when you want to be sure.',
+    controls: 'Pick a test (tap it, or ↑ ↓) · pick a cause (tap it, or keys 1-5) — the grid lights up the runs that cause needs · confirm it a second time to accuse · RE-RUN reveals one more column and costs you points',
+  },
+  {
+    id: 3,
+    name: 'Pipe Dream',
+    tagline: 'The published port is the only way in',
+    brief: 'Your test is on the host, the container is on a Docker network, and a wall stands between them. Rotate the pipes into a route before the connection pool opens — the wall can only be crossed on a published port.',
+    controls: 'Arrows or click move the cursor · Space / Enter / click rotates a piece · the water freezes whatever it touches',
+  },
+  {
+    id: 4,
+    name: 'Ryuk',
+    tagline: 'Cleanup is a label, not a shutdown hook',
+    brief: 'A Docker host shared by several builds at once, littered with containers, networks and volumes. Collect everything tagged with your own session label before the clock runs out — take somebody else\'s and you have just broken their build.',
+    controls: 'Arrows steer (or tap the host) · everything still moving belongs to a build that has not finished',
+  },
+];
+
+function unlockAfter(levelId, won) {
+  if (!won) return levelId;
+  return Math.min(LEVELS.length, levelId + 1);
+}
+
+function totalScore(best) {
+  return LEVELS.reduce((sum, level) => sum + (best[level.id] || 0), 0);
+}
+
+function rank(total) {
+  if (total >= 6000) return 'Core maintainer';
+  if (total >= 4200) return 'Release manager';
+  if (total >= 2600) return 'CI whisperer';
+  if (total >= 1200) return 'Test engineer';
+  return 'Intern with a laptop fan problem';
+}
+
+/* ------------------------------------------------------------------ */
+
+function clamp(v, min, max) {
+  return Math.min(max, Math.max(min, v));
+}
+
+function round3(n) {
+  return Math.round(n * 1000) / 1000;
+}
+
+return { STRATEGIES, CATALOG, L1, FAILING, evaluateChoice, greenPoints, bestStrategy, costsLife, timeoutAt, roundLength, buildTimeline, probePips, RUN_FLAGS, CAUSES, L2, TEST_NAMES, buildRuns, isSolvable, isRed, FlakyBoard, DIRS, PIECES, L3, rotate, opens, dirOf, PipeGrid, buildPipeGrid, HOSTS, SPOILS, L4, sessionId, HostBoard, hostIsConnected, LEVELS, unlockAfter, totalScore, rank, clamp };
+};
+
+__modules['src/store.js'] = () => {
+/** Progress persistence. Pure helpers + a thin localStorage wrapper. */
+
+const { LEVELS, unlockAfter } = __require('src/rules.js');
+const KEY = 'testcontainers-game:v1';
+
+function emptyState() {
+  return { unlocked: 1, best: {}, sound: true };
+}
+
+/** Normalise anything that comes out of storage (or a previous version). */
+function sanitise(raw) {
+  const state = emptyState();
+  if (!raw || typeof raw !== 'object') return state;
+  if (Number.isFinite(raw.unlocked)) {
+    state.unlocked = Math.min(LEVELS.length, Math.max(1, Math.floor(raw.unlocked)));
+  }
+  if (raw.best && typeof raw.best === 'object') {
+    for (const [id, score] of Object.entries(raw.best)) {
+      if (Number.isFinite(score) && score > 0) state.best[id] = Math.floor(score);
+    }
+  }
+  state.sound = raw.sound !== false;
+  return state;
+}
+
+/** Apply a finished level to the saved state. Returns a new state. */
+function recordResult(state, { levelId, won, score }) {
+  const next = { ...state, best: { ...state.best } };
+  const previous = next.best[levelId] || 0;
+  if (Number.isFinite(score) && score > previous) next.best[levelId] = Math.floor(score);
+  next.unlocked = Math.max(next.unlocked, unlockAfter(levelId, won));
+  return next;
+}
+
+function isUnlocked(state, levelId) {
+  return levelId <= state.unlocked;
+}
+
+function load(storage = safeStorage()) {
+  if (!storage) return emptyState();
+  try {
+    return sanitise(JSON.parse(storage.getItem(KEY)));
+  } catch {
+    return emptyState();
+  }
+}
+
+function save(state, storage = safeStorage()) {
+  if (!storage) return false;
+  try {
+    storage.setItem(KEY, JSON.stringify(state));
+    return true;
+  } catch {
+    return false; // private mode: play on, just don't persist
+  }
+}
+
+function safeStorage() {
+  try {
+    return globalThis.localStorage ?? null;
+  } catch {
+    return null;
+  }
+}
+
+return { KEY, emptyState, sanitise, recordResult, isUnlocked, load, save };
+};
+
+__modules['src/audio.js'] = () => {
+/** Tiny WebAudio blip synth — no asset files, no autoplay before a gesture. */
+
+const TONES = {
+  pick:    { f: 440, to: 620, d: 0.08, type: 'triangle', g: 0.16 },
+  spin:    { f: 300, to: 480, d: 0.12, type: 'square',   g: 0.10 },
+  ready:   { f: 660, to: 990, d: 0.16, type: 'triangle', g: 0.18 },
+  pass:    { f: 520, to: 880, d: 0.22, type: 'sine',     g: 0.20 },
+  fail:    { f: 300, to: 120, d: 0.28, type: 'sawtooth', g: 0.14 },
+  clean:   { f: 780, to: 300, d: 0.14, type: 'sine',     g: 0.12 },
+  land:    { f: 200, to: 150, d: 0.10, type: 'square',   g: 0.12 },
+  win:     { f: 523, to: 1046, d: 0.42, type: 'triangle', g: 0.22 },
+};
+
+function createAudio(enabled) {
+  let ctx = null;
+  let on = enabled;
+
+  function ensure() {
+    if (!on) return null;
+    if (!ctx) {
+      const Ctor = window.AudioContext || window.webkitAudioContext;
+      if (!Ctor) return null;
+      ctx = new Ctor();
+    }
+    if (ctx.state === 'suspended') ctx.resume();
+    return ctx;
+  }
+
+  return {
+    get enabled() { return on; },
+    setEnabled(next) {
+      on = next;
+      if (!next && ctx) ctx.suspend();
+    },
+    unlock() { ensure(); },
+    play(name) {
+      const tone = TONES[name];
+      const ac = tone ? ensure() : null;
+      if (!ac) return;
+      const t = ac.currentTime;
+      const osc = ac.createOscillator();
+      const gain = ac.createGain();
+      osc.type = tone.type;
+      osc.frequency.setValueAtTime(tone.f, t);
+      osc.frequency.exponentialRampToValueAtTime(tone.to, t + tone.d);
+      gain.gain.setValueAtTime(tone.g, t);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + tone.d);
+      osc.connect(gain).connect(ac.destination);
+      osc.start(t);
+      osc.stop(t + tone.d + 0.02);
+    },
+  };
+}
+
+return { createAudio };
+};
+
+__modules['src/engine.js'] = () => {
+/**
+ * Fixed-timestep game loop, canvas scaling and input plumbing.
+ * Scenes implement: enter(engine), update(dt), draw(ctx), exit().
+ */
+
+const STEP = 1 / 60;
+const MAX_FRAME = 0.25;
+
+const VIEW = { w: 960, h: 540 };
+
+class Input {
+  constructor(canvas, engine) {
+    this.canvas = canvas;
+    this.engine = engine;
+    /** @type {Set<string>} keys currently held */
+    this.held = new Set();
+    /** @type {string[]} keys pressed since the last update */
+    this.presses = [];
+    /** @type {{x:number,y:number}[]} taps since the last update */
+    this.taps = [];
+
+    this._onKeyDown = (e) => {
+      if (e.repeat) return;
+      const code = normalise(e.code);
+      if (!code) return;
+      if (code === 'Space' || code.startsWith('Arrow')) e.preventDefault();
+      this.held.add(code);
+      this.presses.push(code);
+    };
+    this._onKeyUp = (e) => this.held.delete(normalise(e.code));
+    this._onBlur = () => this.held.clear();
+    this._onPointer = (e) => {
+      const r = canvas.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      this.taps.push({
+        x: ((e.clientX - r.left) / r.width) * VIEW.w,
+        y: ((e.clientY - r.top) / r.height) * VIEW.h,
+        touch: e.pointerType !== 'mouse',
+      });
+      canvas.focus({ preventScroll: true });
+    };
+
+    window.addEventListener('keydown', this._onKeyDown);
+    window.addEventListener('keyup', this._onKeyUp);
+    window.addEventListener('blur', this._onBlur);
+    canvas.addEventListener('pointerdown', this._onPointer);
+  }
+
+  /** Feed a synthetic key press (used by the on-screen touch buttons). */
+  virtualPress(code) {
+    this.presses.push(code);
+    this.held.add(code);
+  }
+
+  virtualRelease(code) {
+    this.held.delete(code);
+  }
+
+  isHeld(code) {
+    return this.held.has(code);
+  }
+
+  takePresses() {
+    const out = this.presses;
+    this.presses = [];
+    return out;
+  }
+
+  takeTaps() {
+    const out = this.taps;
+    this.taps = [];
+    return out;
+  }
+
+  clear() {
+    this.held.clear();
+    this.presses.length = 0;
+    this.taps.length = 0;
+  }
+}
+
+function normalise(code) {
+  if (!code) return '';
+  // Digit1 / Numpad1 both mean "1".
+  if (/^(Digit|Numpad)[1-9]$/.test(code)) return 'Key' + code.slice(-1);
+  return code;
+}
+
+class Engine {
+  /**
+   * @param {HTMLCanvasElement} canvas
+   * @param {{onHud:(state:object)=>void, announce:(msg:string)=>void, audio:object}} hooks
+   */
+  constructor(canvas, hooks) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.hooks = hooks;
+    this.input = new Input(canvas, this);
+    this.scene = null;
+    this.paused = false;
+    this.time = 0;
+    this.reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    this._acc = 0;
+    this._last = 0;
+    this._raf = 0;
+    this._frame = this._frame.bind(this);
+
+    this._resize();
+    window.addEventListener('resize', () => this._resize());
+  }
+
+  _resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = Math.round(VIEW.w * dpr);
+    const h = Math.round(VIEW.h * dpr);
+    if (this.canvas.width !== w || this.canvas.height !== h) {
+      this.canvas.width = w;
+      this.canvas.height = h;
+    }
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  setScene(scene) {
+    if (this.scene && this.scene.exit) this.scene.exit();
+    this.input.clear();
+    this.paused = false;
+    this.scene = scene;
+    this._acc = 0;
+    if (scene && scene.enter) scene.enter(this);
+  }
+
+  setPaused(paused) {
+    this.paused = paused;
+    if (!paused) this._last = performance.now();
+    this.input.clear();
+  }
+
+  hud(state) {
+    this.hooks.onHud(state);
+  }
+
+  announce(message) {
+    this.hooks.announce(message);
+  }
+
+  sfx(name) {
+    this.hooks.audio.play(name);
+  }
+
+  start() {
+    if (this._raf) return;
+    this._last = performance.now();
+    this._raf = requestAnimationFrame(this._frame);
+  }
+
+  stop() {
+    cancelAnimationFrame(this._raf);
+    this._raf = 0;
+  }
+
+  _frame(now) {
+    this._raf = requestAnimationFrame(this._frame);
+    const elapsed = Math.min((now - this._last) / 1000, MAX_FRAME);
+    this._last = now;
+
+    if (!this.scene) return;
+    if (!this.paused) {
+      this._acc += elapsed;
+      let guard = 0;
+      const running = this.scene;
+      while (this._acc >= STEP && guard++ < 8) {
+        this.time += STEP;
+        this.scene.update(STEP);
+        this._acc -= STEP;
+        // A level can end inside its own update, which swaps the scene out
+        // from under us: stop stepping the one that just left.
+        if (this.scene !== running) break;
+      }
+    } else {
+      this.input.takePresses();
+      this.input.takeTaps();
+    }
+    if (!this.scene) return;
+    this.ctx.clearRect(0, 0, VIEW.w, VIEW.h);
+    this.scene.draw(this.ctx);
+  }
+}
+
+return { VIEW, Engine };
+};
+
+__modules['src/levels/level1-wait.js'] = () => {
+/**
+ * Level 1 — Wait Strategies.
+ * You do not run the test; Testcontainers does. All you choose is how it
+ * decides the container is ready — and that choice is the whole game.
+ */
+
+const { C, MONO, SERVICES, drawBanner, drawClouds, drawContainer, drawGull, drawHarbour, drawSea, drawSky, meter, panel, roundRect, text } = __require('src/draw.js');
+const { mulberry32, randomSeed } = __require('src/rng.js');
+const { CATALOG, L1, STRATEGIES, bestStrategy, buildTimeline, costsLife, evaluateChoice, roundLength, timeoutAt } = __require('src/rules.js');
+const HORIZON = 300;
+const KEYS = { Key1: 'port', Key2: 'log', Key3: 'http', Key4: 'sleep' };
+const TONE = { green: C.green, slow: C.amber, flaky: C.red, unsupported: C.red };
+const TITLE = {
+  green: 'Suite green',
+  slow: 'Green, but slow',
+  flaky: 'Flaky failure',
+  unsupported: 'The wait never fired',
+};
+
+class WaitStrategiesLevel {
+  constructor() {
+    this.id = 1;
+  }
+
+  enter(engine) {
+    this.engine = engine;
+    this.rng = mulberry32(randomSeed());
+    this.order = shuffle(CATALOG.map((_, i) => i), this.rng);
+    this.round = 0;
+    this.lives = L1.LIVES;
+    this.score = 0;
+    this.greens = 0;
+    this.wasted = 0;
+    this.flakes = 0;
+    this.t = 0;
+    this.cards = [];
+    this.startRound();
+    this.pushHud();
+    engine.announce('Level 1, wait strategies. Pick the strategy this service deserves with keys 1 to 4.');
+  }
+
+  pushHud() {
+    this.engine.hud({ level: 'Level 1 · Wait strategies', score: this.score, lives: this.lives });
+  }
+
+  startRound() {
+    this.spec = CATALOG[this.order[this.round % this.order.length]];
+    this.lines = buildTimeline(this.spec, this.rng);
+    this.shown = [];
+    this.strategy = null;
+    this.outcome = null;
+    this.phase = 'choose';
+    this.clock = 0;
+    this.runFor = 0;
+    this.probe = { next: L1.PROBE_START, pips: [], green: false };
+  }
+
+  update(dt) {
+    this.t += dt;
+
+    for (const code of this.engine.input.takePresses()) this.onKey(code);
+    for (const tap of this.engine.input.takeTaps()) {
+      if (this.phase === 'choose') {
+        const hit = this.cards.find((c) => inside(tap, c));
+        if (hit) this.pick(hit.strategy);
+      } else if (this.phase === 'result') {
+        this.advance();
+      }
+    }
+
+    if (this.phase === 'run') {
+      this.clock += dt * L1.PLAY_SPEED;
+      this.streamLogs();
+      if (this.strategy === 'http') this.streamProbes();
+      this.runFor += dt;
+      if (this.runFor >= roundLength(this.spec, this.outcome)) this.reveal();
+    } else if (this.phase === 'result') {
+      this.resultTimer -= dt;
+      if (this.resultTimer <= 0) this.advance();
+    }
+  }
+
+  streamLogs() {
+    while (this.lines.length && this.lines[0].t <= this.clock) {
+      const line = this.lines.shift();
+      this.shown.push(line);
+      if (this.shown.length > 7) this.shown.shift();
+      if (line.kind === 'ready' && this.strategy === 'log') this.engine.sfx('ready');
+    }
+  }
+
+  streamProbes() {
+    while (this.clock >= this.probe.next) {
+      const ok = this.probe.next >= this.spec.readyAt;
+      this.probe.pips.push({ t: this.probe.next, ok });
+      if (this.probe.pips.length > 8) this.probe.pips.shift();
+      if (ok && !this.probe.green) {
+        this.probe.green = true;
+        this.engine.sfx('ready');
+      }
+      this.probe.next += L1.PROBE_INTERVAL;
+    }
+  }
+
+  onKey(code) {
+    if (this.phase === 'choose') {
+      if (KEYS[code]) this.pick(KEYS[code]);
+    } else if (this.phase === 'result') {
+      this.advance();
+    }
+  }
+
+  /** The only decision in the level. Everything after it is deterministic. */
+  pick(strategy) {
+    this.strategy = strategy;
+    this.outcome = evaluateChoice(this.spec, strategy);
+    this.phase = 'run';
+    this.engine.sfx('spin');
+    this.engine.announce(`${STRATEGIES[strategy].name}. Running the test.`);
+  }
+
+  reveal() {
+    const { verdict, points, wasted, why } = this.outcome;
+    this.phase = 'result';
+    this.resultTimer = 6;
+    this.score += points;
+
+    if (verdict === 'green' || verdict === 'slow') {
+      this.greens += 1;
+      this.wasted += wasted;
+      this.engine.sfx('pass');
+    } else {
+      this.lives -= 1;
+      if (verdict === 'flaky') this.flakes += 1;
+      this.engine.sfx('fail');
+    }
+    this.engine.announce(`${TITLE[verdict]}. ${why}`);
+    this.pushHud();
+  }
+
+  advance() {
+    if (this.phase !== 'result') return;
+    if (this.lives <= 0) return this.finish(false);
+    this.round += 1;
+    if (this.round >= L1.ROUNDS) return this.finish(true);
+    this.startRound();
+  }
+
+  finish(won) {
+    this.engine.hooks.onLevelEnd({
+      levelId: 1,
+      won,
+      score: this.score,
+      stats: [
+        { label: 'Tests green', value: `${this.greens}/${L1.ROUNDS}` },
+        { label: 'Time wasted', value: `${this.wasted.toFixed(1)}s` },
+        { label: 'Flaky runs', value: String(this.flakes) },
+      ],
+      takeaway: won
+        ? 'You never timed anything — you picked a signal and Testcontainers did the waiting. That is the whole point: an open port means something is listening, not that it can serve you.'
+        : 'Every red run here was a strategy that lied: a port that opens too early, a sleep that guessed wrong. Pick the signal the service actually publishes and the flake goes away.',
+    });
+  }
+
+  draw(ctx) {
+    const W = 960;
+    const H = 540;
+    drawSky(ctx, W, H, HORIZON);
+    drawClouds(ctx, this.t, W, HORIZON);
+    drawHarbour(ctx, W, HORIZON);
+    drawSea(ctx, this.t, W, H, HORIZON);
+    drawGull(ctx, 830, 90 + Math.sin(this.t * 1.4) * 8, this.t);
+
+    text(ctx, `ROUND ${Math.min(this.round + 1, L1.ROUNDS)} / ${L1.ROUNDS}`, W / 2, 40, {
+      size: 13, weight: 700, color: C.navy, align: 'center', alpha: 0.7, letterSpacing: '2px',
+    });
+
+    this.drawContainerStage(ctx);
+    this.drawLogPanel(ctx);
+
+    if (this.phase === 'choose') this.drawChoice(ctx);
+    else this.cards = [];
+
+    if (this.phase === 'run') this.drawRun(ctx);
+    if (this.phase === 'result') this.drawResult(ctx);
+  }
+
+  drawContainerStage(ctx) {
+    const svc = SERVICES[this.spec.service] || SERVICES.postgres;
+    const progress = this.phase === 'choose' ? 0 : Math.min(1, this.clock / this.spec.readyAt);
+    const bob = Math.sin(this.t * 2) * 4;
+    const x = 96;
+    const y = 150 + bob;
+
+    drawContainer(ctx, x, y, 190, 110, svc.color, {
+      label: this.spec.service,
+      state: this.phase === 'choose' ? 'idle' : 'booting',
+      progress,
+    });
+    text(ctx, this.spec.image, x + 95, y + 132, {
+      size: 11, weight: 500, color: C.navy, align: 'center', font: MONO, alpha: 0.75,
+    });
+
+    if (this.phase === 'choose') return;
+
+    // One badge per signal; only the chosen one is live, and it lights up when
+    // that strategy would have released the test.
+    Object.values(STRATEGIES).forEach((s, i) => {
+      const fires = this.spec.fires[s.key];
+      const mine = this.strategy === s.key;
+      const on = mine && fires != null && this.clock >= fires;
+      const bx = 96 + i * 78;
+      panel(ctx, bx, 328, 74, 26, {
+        fill: on ? 'rgba(59,178,115,.9)' : 'rgba(8,26,46,.55)',
+        stroke: mine ? C.cream : 'rgba(255,255,255,.2)',
+        radius: 8,
+      });
+      tick(ctx, bx + 11, 341, on);
+      text(ctx, s.key, bx + 22, 341, {
+        size: 11, weight: 600, color: C.cream, baseline: 'middle', font: MONO, alpha: mine ? 1 : 0.4,
+      });
+    });
+  }
+
+  drawLogPanel(ctx) {
+    const x = 380;
+    const y = 120;
+    const w = 500;
+    const h = 200;
+    panel(ctx, x, y, w, h, { fill: 'rgba(8,26,46,.88)', radius: 12 });
+    text(ctx, `$ docker logs -f ${this.spec.service}`, x + 16, y + 26, {
+      size: 12, weight: 600, color: C.teal, font: MONO,
+    });
+    ctx.save();
+    roundRect(ctx, x, y + 36, w, h - 36, 12);
+    ctx.clip();
+    this.shown.forEach((line, i) => {
+      const ly = y + 58 + i * 21;
+      const isReady = line.kind === 'ready' && this.strategy === 'log';
+      if (isReady) {
+        panel(ctx, x + 10, ly - 13, w - 20, 20, { fill: 'rgba(59,178,115,.25)', stroke: 'transparent', radius: 4 });
+      }
+      text(ctx, truncate(line.text, 58), x + 16, ly, {
+        size: 11.5, weight: isReady ? 700 : 400, font: MONO,
+        color: isReady ? C.green : 'rgba(247,241,227,.72)',
+      });
+    });
+    ctx.restore();
+
+    if (this.strategy === 'http' && this.probe.pips.length) {
+      text(ctx, 'probe', x + 16, y + h + 22, { size: 11, weight: 600, color: C.navy, font: MONO });
+      this.probe.pips.forEach((p, i) => {
+        const px = x + 62 + i * 22;
+        ctx.fillStyle = p.ok ? C.green : 'rgba(224,82,99,.75)';
+        ctx.beginPath();
+        ctx.arc(px, y + h + 18, 7, 0, Math.PI * 2);
+        ctx.fill();
+        text(ctx, p.ok ? '200' : '503', px, y + h + 36, {
+          size: 8, weight: 700, color: C.navy, align: 'center', font: MONO, alpha: 0.8,
+        });
+      });
+    }
+  }
+
+  drawChoice(ctx) {
+    const W = 960;
+    panel(ctx, 40, 348, W - 80, 158, { fill: 'rgba(8,26,46,.9)', radius: 14 });
+    text(ctx, `HOW SHOULD TESTCONTAINERS WAIT FOR ${this.spec.service.toUpperCase()}?`, W / 2, 374, {
+      size: 13, weight: 800, color: C.teal, align: 'center', letterSpacing: '2px',
+    });
+
+    this.cards = Object.values(STRATEGIES).map((s, i) => {
+      const w = 205;
+      const x = 52 + i * (w + 12);
+      const y = 388;
+      const h = 104;
+      panel(ctx, x, y, w, h, { fill: 'rgba(255,255,255,.07)', stroke: 'rgba(255,255,255,.25)', radius: 10 });
+      panel(ctx, x + 12, y + 12, 22, 22, { fill: C.teal, stroke: 'transparent', radius: 6 });
+      text(ctx, String(i + 1), x + 23, y + 24, {
+        size: 13, weight: 800, color: C.navyDeep, align: 'center', baseline: 'middle',
+      });
+      text(ctx, s.name, x + 42, y + 28, { size: 13.5, weight: 700, color: C.cream });
+      wrap(s.hint, 30).slice(0, 3).forEach((line, n) => {
+        text(ctx, line, x + 13, y + 52 + n * 14, { size: 10, weight: 400, color: 'rgba(247,241,227,.7)' });
+      });
+      text(ctx, s.caption, x + 13, y + 94, { size: 10, weight: 600, color: C.amber });
+      return { strategy: s.key, x, y, w, h };
+    });
+  }
+
+  drawRun(ctx) {
+    const W = 960;
+    const s = STRATEGIES[this.strategy];
+    const limit = timeoutAt(this.spec);
+    panel(ctx, 80, 372, W - 160, 120, { fill: 'rgba(8,26,46,.9)', radius: 14 });
+
+    text(ctx, 'WAITING', 110, 402, { size: 12, weight: 800, color: C.teal, letterSpacing: '2px' });
+    text(ctx, s.call, 110, 428, { size: 14, weight: 600, color: C.cream, font: MONO });
+    text(ctx, `container uptime ${this.clock.toFixed(1)}s`, 110, 458, {
+      size: 11.5, weight: 500, color: 'rgba(247,241,227,.65)', font: MONO,
+    });
+
+    const dots = '.'.repeat(1 + Math.floor(this.t * 3) % 3);
+    text(ctx, `the suite is blocked${dots}`, W - 110, 410, {
+      size: 15, weight: 700, color: C.amber, align: 'right',
+    });
+    meter(ctx, W - 410, 440, 300, 10, Math.min(1, this.clock / limit), { color: C.teal });
+    text(ctx, 'you are not doing anything here — that is the point', W - 110, 470, {
+      size: 10.5, weight: 500, color: 'rgba(247,241,227,.5)', align: 'right',
+    });
+  }
+
+  drawResult(ctx) {
+    const W = 960;
+    const o = this.outcome;
+    const tone = TONE[o.verdict];
+    drawBanner(ctx, W, 186, TITLE[o.verdict], this.detail(), tone);
+
+    panel(ctx, 80, 366, W - 160, 136, { fill: 'rgba(8,26,46,.92)', radius: 14 });
+    text(ctx, STRATEGIES[this.strategy].call, 108, 396, {
+      size: 13, weight: 700, color: tone, font: MONO,
+    });
+    wrap(o.why, 86).slice(0, 3).forEach((line, i) => {
+      text(ctx, line, 108, 420 + i * 18, { size: 12, weight: 400, color: 'rgba(247,241,227,.85)' });
+    });
+
+    const best = bestStrategy(this.spec);
+    if (best !== this.strategy) {
+      text(ctx, `best answer: ${STRATEGIES[best].call}`, 108, 484, {
+        size: 11.5, weight: 700, color: C.teal, font: MONO,
+      });
+    } else {
+      text(ctx, 'best answer: the one you picked.', 108, 484, {
+        size: 11.5, weight: 700, color: C.green, font: MONO,
+      });
+    }
+    text(ctx, 'any key or tap to continue', W - 108, 484, {
+      size: 11, weight: 600, color: 'rgba(247,241,227,.45)', align: 'right',
+    });
+  }
+
+  detail() {
+    const o = this.outcome;
+    if (o.verdict === 'unsupported') return `${this.spec.image} never answers that probe · timed out`;
+    if (o.verdict === 'flaky') return `Test started ${Math.abs(o.wasted).toFixed(2)}s before ${this.spec.service} was ready`;
+    if (o.verdict === 'slow') return `Passed, after ${o.wasted.toFixed(2)}s of dead time · +${o.points}`;
+    return `Started ${o.wasted.toFixed(2)}s after readiness · +${o.points}`;
+  }
+}
+
+/** A tick when the signal has fired, a dot while it has not. */
+function tick(ctx, x, y, on) {
+  ctx.save();
+  ctx.strokeStyle = C.cream;
+  ctx.lineWidth = 2;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  if (on) {
+    ctx.moveTo(x - 4, y);
+    ctx.lineTo(x - 1, y + 3.5);
+    ctx.lineTo(x + 4.5, y - 4);
+    ctx.stroke();
+  } else {
+    ctx.globalAlpha = 0.5;
+    ctx.arc(x, y, 1.8, 0, Math.PI * 2);
+    ctx.fillStyle = C.cream;
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+/** Fisher-Yates with the level's seeded rng, so a run is reproducible. */
+function shuffle(items, rng) {
+  const out = items.slice();
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+/** Greedy word wrap to lines of at most `n` characters. */
+function wrap(s, n) {
+  const lines = [];
+  let line = '';
+  for (const word of s.split(' ')) {
+    const next = line ? line + ' ' + word : word;
+    if (next.length > n && line) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = next;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+function truncate(s, n) {
+  return s.length > n ? s.slice(0, n - 1) + '…' : s;
+}
+
+function inside(p, r) {
+  return p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h;
+}
+
+return { WaitStrategiesLevel };
+};
+
+__modules['src/levels/level2-flaky.js'] = () => {
+/**
+ * Level 2 — The flaky detective.
+ * A matrix of tests by CI runs, mostly hidden. A broken test is red in every
+ * run; a flaky one is red only when the runner did something in particular.
+ * Re-running buys you another column of evidence, and costs you points.
+ */
+
+const { C, MONO, drawBanner, drawClouds, drawHarbour, drawSea, drawSky, panel, text } = __require('src/draw.js');
+const { mulberry32, randomSeed } = __require('src/rng.js');
+const { CAUSES, FlakyBoard, L2, RUN_FLAGS } = __require('src/rules.js');
+const HORIZON = 220;
+const ORDER = ['broken', 'port', 'state', 'wait', 'order'];
+const KEYS = { Key1: 0, Key2: 1, Key3: 2, Key4: 3, Key5: 4 };
+
+/** The HUD chips own the top 44px of the canvas, so the board starts below them. */
+const GRID = { x: 40, y: 84, w: 880, area: 300, head: 52, row: 32, label: 260, gap: 8, maxCol: 92 };
+const TOAST_Y = 392;
+const TOAST_H = 56;
+
+class FlakyDetectiveLevel {
+  constructor() {
+    this.id = 2;
+  }
+
+  enter(engine) {
+    this.engine = engine;
+    this.rng = mulberry32(randomSeed());
+    this.round = 0;
+    this.lives = L2.LIVES;
+    this.score = 0;
+    this.solved = 0;
+    this.mistakes = 0;
+    this.spent = 0;
+    this.t = 0;
+    this.chips = [];
+    this.rowRects = [];
+    this.rerunRect = { x: 0, y: 0, w: 0, h: 0 };
+    this.startBoard();
+    this.pushHud();
+    engine.announce('Level 2, the flaky detective. Pick a test, then pick the cause whose run flag matches the runs where it went red. Every cause asks for a second confirmation before it costs you a life.');
+  }
+
+  pushHud() {
+    this.engine.hud({ level: 'Level 2 · The flaky detective', score: this.score, lives: this.lives });
+  }
+
+  startBoard() {
+    const spec = L2.BOARDS[this.round];
+    this.board = new FlakyBoard({ rng: this.rng, ...spec });
+    this.cursor = 0;
+    this.phase = 'play';
+    this.flash = null;
+    this.armed = null;
+    this.toast = {
+      tone: C.teal,
+      title: `${this.board.faults} of these ${this.board.rows.length} tests are faulty.`,
+      body: 'Pick a test, then pick a cause: the grid will light the runs that cause needs. '
+        + 'When the lit columns match the red cells, you have it.',
+    };
+  }
+
+  update(dt) {
+    this.t += dt;
+    if (this.flash) {
+      this.flash.life -= dt;
+      if (this.flash.life <= 0) this.flash = null;
+    }
+
+    for (const code of this.engine.input.takePresses()) this.onKey(code);
+    for (const tap of this.engine.input.takeTaps()) this.onTap(tap);
+
+    if (this.phase === 'cleared') {
+      this.clearTimer -= dt;
+      if (this.clearTimer <= 0) this.nextBoard();
+    }
+  }
+
+  onKey(code) {
+    if (this.phase !== 'play') return;
+    if (code === 'ArrowUp') return this.move(-1);
+    if (code === 'ArrowDown') return this.move(1);
+    if (code === 'KeyR') return this.rerun();
+    if (code in KEYS) this.pick(ORDER[KEYS[code]]);
+  }
+
+  onTap(tap) {
+    if (this.phase !== 'play') return;
+    if (inside(tap, this.rerunRect)) return this.rerun();
+    const row = this.rowRects.find((r) => inside(tap, r));
+    if (row) return this.select(row.index);
+    const chip = this.chips.find((r) => inside(tap, r));
+    if (chip) this.pick(chip.cause);
+  }
+
+  move(step) {
+    const rows = this.board.rows;
+    for (let i = 1; i <= rows.length; i++) {
+      const next = (this.cursor + step * i + rows.length * 2) % rows.length;
+      if (!rows[next].solved) {
+        this.select(next);
+        return;
+      }
+    }
+  }
+
+  /** Move the spotlight to a test. Changing suspects cancels a pending call. */
+  select(index) {
+    this.cursor = index;
+    this.armed = null;
+    this.engine.sfx('pick');
+    const row = this.board.rows[index];
+    this.toast = {
+      tone: C.teal,
+      title: row.name,
+      body: 'Read its row: which of P, S, L, O was on in every run where it went red? '
+        + 'Pick that cause below.',
+    };
+    this.engine.announce(`${row.name} selected. ${this.toast.body}`);
+  }
+
+  /**
+   * Causes arm on the first press and fire on the second. A wrong call costs a
+   * life, so the level should never lose one to a stray thumb — and the pause
+   * is where the tell gets read.
+   */
+  pick(cause) {
+    if (!CAUSES[cause]) return;
+    const row = this.board.rows[this.cursor];
+    if (!row || row.solved) return;
+    if (this.armed === cause) {
+      this.armed = null;
+      return this.accuse(cause);
+    }
+    this.armed = cause;
+    this.engine.sfx('pick');
+    this.toast = {
+      tone: C.amber,
+      title: `${CAUSES[cause].name} — ${CAUSES[cause].tell.toLowerCase()}`,
+      body: `The lit runs above are the ones it needs. Do they line up with the reds in ${row.name}? `
+        + 'Confirm again to accuse; pick another cause to back out.',
+    };
+    this.engine.announce(`${this.toast.title} ${this.toast.body}`);
+  }
+
+  rerun() {
+    const result = this.board.rerun();
+    if (!result.ok) {
+      // Out of re-runs means every column is already on the board, so say that
+      // instead of implying the evidence is short: this used to read like a dead
+      // end at the exact moment the puzzle became fully decidable.
+      const full = this.board.revealed >= this.board.runs.length;
+      this.toast = {
+        tone: C.amber,
+        title: full ? 'That is every run there is.' : 'No CI minutes left.',
+        body: full
+          ? `All ${this.board.runs.length} runs are on the board. Nothing is hidden — the pattern is in front of you.`
+          : 'Call it with the evidence you have. That is the job.',
+      };
+      this.engine.sfx('pick');
+      this.engine.announce(`${this.toast.title} ${this.toast.body}`);
+      return;
+    }
+    this.spent += 1;
+    this.armed = null;
+    this.engine.sfx('spin');
+    const on = RUN_FLAGS.filter((f) => result.run.flags[f.key]).map((f) => f.label);
+    this.toast = {
+      tone: C.teal,
+      title: `Run ${result.run.id} finished.`,
+      body: on.length ? `This one ran with ${list(on)}.` : 'This one ran clean: one fork, fresh databases, idle runner, declared order.',
+    };
+    this.engine.announce(`${this.toast.title} ${this.toast.body}`);
+  }
+
+  accuse(cause) {
+    const row = this.board.rows[this.cursor];
+    if (!row || row.solved) return;
+    this.armed = null;
+    const result = this.board.accuse(row.id, cause);
+    if (!result.ok) return;
+
+    if (result.correct) {
+      this.score += result.points;
+      this.solved += 1;
+      this.flash = { row: row.id, tone: C.green, life: 0.6 };
+      this.toast = { tone: C.green, title: `${CAUSES[cause].name}. +${result.points}`, body: CAUSES[cause].fix };
+      this.engine.sfx('pass');
+      if (this.board.done) return this.clearBoard();
+      const verdict = this.toast;
+      this.move(1);
+      this.toast = verdict;
+    } else {
+      this.lives -= 1;
+      this.mistakes += 1;
+      this.flash = { row: row.id, tone: C.red, life: 0.6 };
+      this.toast = {
+        tone: C.red,
+        title: `Not ${CAUSES[cause].name.toLowerCase()}.`,
+        body: `${CAUSES[cause].tell} Read that column again.`,
+      };
+      this.engine.sfx('fail');
+      if (this.lives <= 0) return this.finish(false);
+    }
+    this.engine.announce(`${this.toast.title} ${this.toast.body}`);
+    this.pushHud();
+  }
+
+  clearBoard() {
+    const bonus = this.board.bonus();
+    this.score += bonus;
+    this.phase = 'cleared';
+    this.clearTimer = 2.6;
+    this.toast = {
+      tone: C.green,
+      title: `Board clear · +${bonus} for ${this.board.rerunsLeft} unused re-runs`,
+      body: 'Evidence is not free. The fewer runs it takes you, the cheaper the suite.',
+    };
+    this.engine.sfx('pass');
+    this.engine.announce(this.toast.title);
+    this.pushHud();
+  }
+
+  nextBoard() {
+    this.round += 1;
+    if (this.round >= L2.ROUNDS) return this.finish(true);
+    this.startBoard();
+  }
+
+  finish(won) {
+    this.engine.hooks.onLevelEnd({
+      levelId: 2,
+      won,
+      score: this.score,
+      stats: [
+        { label: 'Causes named', value: String(this.solved) },
+        { label: 'Wrong calls', value: String(this.mistakes) },
+        { label: 'Re-runs spent', value: String(this.spent) },
+      ],
+      takeaway: won
+        ? 'A flaky test is not random: it fails when something about the run changes. Find that something and the fix writes itself — usually a wait strategy or a container that was shared when it should not have been.'
+        : 'Re-running until it goes green is not debugging. The pattern across runs is the evidence: what did the red runs have in common?',
+    });
+  }
+
+  /* ---------------------------------------------------------------- */
+
+  draw(ctx) {
+    const W = 960;
+    const H = 540;
+    drawSky(ctx, W, H, HORIZON);
+    drawClouds(ctx, this.t * 0.6, W, HORIZON);
+    drawHarbour(ctx, W, HORIZON);
+    drawSea(ctx, this.t, W, H, HORIZON);
+
+    this.drawHeader(ctx);
+    this.drawMatrix(ctx);
+    this.drawToast(ctx);
+    this.drawCauses(ctx);
+
+    if (this.phase === 'cleared') {
+      drawBanner(ctx, W, 190, 'Board clear', `${this.board.rerunsLeft} re-runs unspent`, C.green);
+    }
+  }
+
+  drawHeader(ctx) {
+    text(ctx, `BOARD ${this.round + 1} / ${L2.ROUNDS}`, 40, 68, {
+      size: 13, weight: 700, color: C.navy, letterSpacing: '2px',
+    });
+    text(ctx, `${this.board.remaining} left to name`, 214, 68, {
+      size: 13, weight: 600, color: C.navy, alpha: 0.7,
+    });
+
+    const w = 210;
+    const x = 920 - w;
+    const can = this.board.canRerun();
+    this.rerunRect = { x, y: 48, w, h: 30 };
+    panel(ctx, x, 48, w, 30, {
+      fill: can ? C.teal : 'rgba(13,42,71,.35)', stroke: 'transparent', radius: 8,
+    });
+    text(ctx, `RE-RUN (R) · ${this.board.rerunsLeft} left`, x + w / 2, 68, {
+      size: 12, weight: 800, color: can ? C.navyDeep : 'rgba(247,241,227,.55)', align: 'center',
+    });
+  }
+
+  drawMatrix(ctx) {
+    const rows = this.board.rows;
+    const h = GRID.head + rows.length * GRID.row + 26;
+    const top = GRID.y + Math.round((GRID.area - h) / 2);
+    // The run columns share out whatever room the test names leave them.
+    const left = GRID.x + 20 + GRID.label;
+    const room = GRID.x + GRID.w - 20 - left;
+    const n = this.board.runs.length;
+    this.col = Math.min(GRID.maxCol, Math.floor((room + GRID.gap) / n) - GRID.gap);
+    this.colStart = left + Math.max(0, Math.round((room - (n * (this.col + GRID.gap) - GRID.gap)) / 2));
+    panel(ctx, GRID.x, top, GRID.w, h, { fill: 'rgba(8,26,46,.95)', radius: 12 });
+    this.drawArmedColumns(ctx, top, h);
+
+    this.board.runs.forEach((run, i) => {
+      const cx = this.colX(i) + this.col / 2;
+      const seen = i < this.board.revealed;
+      text(ctx, `#${run.id}`, cx, top + 22, {
+        size: 11, weight: 700, color: seen ? C.cream : 'rgba(247,241,227,.3)', align: 'center', font: MONO,
+      });
+      RUN_FLAGS.forEach((flag, f) => {
+        const on = seen && run.flags[flag.key];
+        const bx = cx - 24 + f * 13;
+        panel(ctx, bx, top + 28, 11, 14, {
+          fill: on ? C.amber : 'rgba(255,255,255,.08)', stroke: 'transparent', radius: 3,
+        });
+        text(ctx, flag.short, bx + 5.5, top + 35, {
+          size: 8, weight: 800, align: 'center', baseline: 'middle', font: MONO,
+          color: on ? C.navyDeep : 'rgba(247,241,227,.35)',
+        });
+      });
+    });
+
+    this.rowRects = rows.map((row, r) => {
+      const y = top + GRID.head + r * GRID.row;
+      const selected = r === this.cursor && this.phase === 'play';
+      if (selected) {
+        panel(ctx, GRID.x + 8, y + 2, GRID.w - 16, GRID.row - 4, {
+          fill: 'rgba(46,196,182,.16)', stroke: C.teal, radius: 8,
+        });
+        panel(ctx, GRID.x + 8, y + 2, 4, GRID.row - 4, {
+          fill: C.teal, stroke: 'transparent', radius: 2,
+        });
+      }
+      if (this.flash && this.flash.row === row.id) {
+        panel(ctx, GRID.x + 8, y + 2, GRID.w - 16, GRID.row - 4, {
+          fill: this.flash.tone, stroke: 'transparent', radius: 8, alpha: 0.25,
+        });
+      }
+      text(ctx, truncate(row.name, row.solved ? 20 : 34), GRID.x + 20, y + GRID.row / 2, {
+        size: 11.5, weight: row.solved ? 400 : 600, font: MONO, baseline: 'middle',
+        color: row.solved ? 'rgba(247,241,227,.45)' : C.cream,
+      });
+      if (row.solved) {
+        text(ctx, CAUSES[row.cause].name.toLowerCase(), GRID.x + 12 + GRID.label, y + GRID.row / 2, {
+          size: 9.5, weight: 700, color: C.green, align: 'right', baseline: 'middle',
+        });
+      }
+
+      this.board.runs.forEach((run, i) => {
+        const seen = i < this.board.revealed;
+        const red = seen && isRedCell(row, run);
+        const cw = Math.min(this.col - 10, 58);
+        const cx = this.colX(i) + (this.col - cw) / 2;
+        const cy = y + 6;
+        panel(ctx, cx, cy, cw, GRID.row - 12, {
+          fill: !seen ? 'rgba(255,255,255,.05)' : red ? 'rgba(224,82,99,.92)' : 'rgba(59,178,115,.92)',
+          stroke: 'transparent', radius: 5,
+        });
+        if (!seen) {
+          text(ctx, '?', cx + cw / 2, cy + (GRID.row - 12) / 2, {
+            size: 11, weight: 700, color: 'rgba(247,241,227,.3)', align: 'center', baseline: 'middle',
+          });
+        }
+      });
+      return { index: r, x: GRID.x + 8, y, w: GRID.w - 16, h: GRID.row };
+    });
+
+    const legend = `LIT BADGE = THAT RUN HAD IT ON   ·   `
+      + RUN_FLAGS.map((f) => `${f.short} ${f.label}`).join('   ·   ');
+    text(ctx, legend, GRID.x + 20, top + h - 12, {
+      size: 10, weight: 600, color: 'rgba(247,241,227,.5)', font: MONO,
+    });
+  }
+
+  /**
+   * While a cause is armed, light the runs it needs and veil the ones it does
+   * not. That turns the whole deduction into a shape comparison — the lit
+   * columns should line up with the reds in the row you suspect — instead of
+   * asking the player to hold four flag patterns in their head.
+   */
+  drawArmedColumns(ctx, top, h) {
+    if (!this.armed || !CAUSES[this.armed]) return;
+    const { flag } = CAUSES[this.armed];
+    const y = top + 14;
+    const height = h - 34;
+    this.board.runs.forEach((run, i) => {
+      if (i >= this.board.revealed) return;
+      const needed = flag === null || run.flags[flag];
+      panel(ctx, this.colX(i) - 3, y, this.col + 6, height, {
+        fill: needed ? 'rgba(244,185,66,.14)' : 'rgba(4,14,26,.55)',
+        stroke: needed ? 'rgba(244,185,66,.55)' : 'transparent',
+        radius: 7,
+      });
+    });
+  }
+
+  drawToast(ctx) {
+    const y = TOAST_Y;
+    panel(ctx, GRID.x, y, GRID.w, TOAST_H, { fill: 'rgba(8,26,46,.88)', radius: 10 });
+    text(ctx, this.toast.title, GRID.x + 18, y + 17, { size: 13.5, weight: 800, color: this.toast.tone });
+    wrap(this.toast.body, 100).slice(0, 2).forEach((line, i) => {
+      text(ctx, line, GRID.x + 18, y + 34 + i * 15, {
+        size: 12, weight: 400, color: 'rgba(247,241,227,.8)',
+      });
+    });
+  }
+
+  /**
+   * The five causes, each showing the run flag that triggers it in the same
+   * badge the column headers use. That pairing is the whole puzzle: match the
+   * letter on the card to the letter lit above the red cells.
+   */
+  drawCauses(ctx) {
+    const y = 458;
+    const w = 168;
+    this.chips = ORDER.map((key, i) => {
+      const cause = CAUSES[key];
+      const x = 40 + i * (w + 10);
+      const armed = this.armed === key;
+      panel(ctx, x, y, w, 76, {
+        fill: armed ? 'rgba(244,185,66,.22)' : 'rgba(8,26,46,.72)',
+        stroke: armed ? C.amber : 'rgba(255,255,255,.22)',
+        radius: 9,
+      });
+      panel(ctx, x + 10, y + 9, 18, 18, { fill: armed ? C.amber : C.teal, stroke: 'transparent', radius: 5 });
+      text(ctx, String(i + 1), x + 19, y + 19, {
+        size: 11, weight: 800, color: C.navyDeep, align: 'center', baseline: 'middle',
+      });
+      text(ctx, cause.name, x + 34, y + 19, {
+        size: 12, weight: 700, color: C.cream, baseline: 'middle',
+      });
+
+      const flag = RUN_FLAGS.find((f) => f.key === cause.flag);
+      text(ctx, flag ? 'RED WHEN THIS IS LIT' : 'RED IN EVERY RUN', x + 11, y + 40, {
+        size: 8, weight: 800, color: 'rgba(247,241,227,.45)', letterSpacing: '1.2px',
+      });
+      panel(ctx, x + 11, y + 46, flag ? 16 : 22, 18, {
+        fill: flag ? C.amber : C.red, stroke: 'transparent', radius: 4,
+      });
+      text(ctx, flag ? flag.short : 'ALL', x + (flag ? 19 : 22), y + 55, {
+        size: flag ? 10 : 9, weight: 800, color: C.navyDeep,
+        align: 'center', baseline: 'middle', font: MONO,
+      });
+      text(ctx, flag ? flag.label : 'no pattern to find', x + (flag ? 33 : 39), y + 55, {
+        size: 10, weight: 600, color: 'rgba(247,241,227,.78)', baseline: 'middle',
+      });
+
+      if (armed) {
+        text(ctx, 'CONFIRM TO ACCUSE', x + w / 2, y + 71, {
+          size: 8, weight: 800, color: C.amber, align: 'center', letterSpacing: '1px',
+        });
+      }
+      return { cause: key, x, y, w, h: 76 };
+    });
+  }
+
+  colX(i) {
+    return this.colStart + i * (this.col + GRID.gap);
+  }
+}
+
+function isRedCell(row, run) {
+  if (!row.cause) return false;
+  const flag = CAUSES[row.cause].flag;
+  return flag === null ? true : run.flags[flag];
+}
+
+function list(items) {
+  if (items.length === 1) return items[0];
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+}
+
+function wrap(s, n) {
+  const lines = [];
+  let line = '';
+  for (const word of s.split(' ')) {
+    const next = line ? line + ' ' + word : word;
+    if (next.length > n && line) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = next;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+function truncate(s, n) {
+  return s.length > n ? s.slice(0, n - 1) + '…' : s;
+}
+
+function inside(p, r) {
+  return p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h;
+}
+
+return { FlakyDetectiveLevel };
+};
+
+__modules['src/levels/level3-pipes.js'] = () => {
+/**
+ * Level 3 — Pipe Dream. The test lives on the host, the container lives on a
+ * Docker network, and a wall runs between them. Rotate the pieces into a route
+ * before the connection pool opens; the wall only ever opens on a published
+ * port, which is the whole point of the level.
+ */
+
+const { C, MONO, SERVICES, drawBanner, drawClouds, drawContainer, drawHarbour, drawSea, drawSky, meter, panel, roundRect, text, } = __require('src/draw.js');
+const { mulberry32, randomSeed } = __require('src/rng.js');
+const { DIRS, L3, buildPipeGrid, opens } = __require('src/rules.js');
+const HORIZON = 220;
+/** The HUD chips own the top 44px of the canvas, so everything starts below. */
+const AREA = { x: 250, y: 100, w: 510, h: 316 };
+const STRIP = { x: 40, y: 430, w: 880, h: 78 };
+const MAX_CELL = 78;
+
+const MOVES = {
+  ArrowUp: { dx: 0, dy: -1 },
+  ArrowDown: { dx: 0, dy: 1 },
+  ArrowLeft: { dx: -1, dy: 0 },
+  ArrowRight: { dx: 1, dy: 0 },
+};
+
+class PipeDreamLevel {
+  constructor() {
+    this.id = 3;
+  }
+
+  enter(engine) {
+    this.engine = engine;
+    this.rng = mulberry32(randomSeed());
+    this.t = 0;
+    this.round = 0;
+    this.lives = L3.LIVES;
+    this.score = 0;
+    this.connections = 0;
+    this.dryTotal = 0;
+    this.startBoard();
+    this.pushHud();
+  }
+
+  pushHud() {
+    this.engine.hud({ level: 'Level 3 · Pipe Dream', score: this.score, lives: this.lives });
+  }
+
+  startBoard() {
+    this.spec = L3.BOARDS[this.round];
+    this.grid = buildPipeGrid(this.spec, this.rng);
+    this.service = SERVICES[this.spec.service];
+    this.mapped = 32768 + Math.floor(this.rng() * 900);
+    this.cursor = { x: 0, y: this.spec.srcRow };
+    this.phase = 'lead';
+    this.lead = this.spec.lead;
+    this.fillT = 0;
+    this.timer = 0;
+    this.fresh = [];
+    this.layout();
+    this.toast = {
+      tone: C.teal,
+      title: `${this.service.label} is listening on ${this.spec.port}, inside the network.`,
+      body: `Your test is outside it. Turn the pipes into a route — the wall only opens where the port is published.`,
+    };
+    this.engine.announce(`Board ${this.round + 1}. ${this.toast.title} ${this.toast.body}`);
+  }
+
+  /** Cell size and grid origin, recomputed per board so every board is centred. */
+  layout() {
+    const { cols, rows } = this.spec;
+    this.cell = Math.min(Math.floor(AREA.w / cols), Math.floor(AREA.h / rows), MAX_CELL);
+    this.gx = AREA.x + Math.round((AREA.w - cols * this.cell) / 2);
+    this.gy = AREA.y + Math.round((AREA.h - rows * this.cell) / 2);
+  }
+
+  update(dt) {
+    this.t += dt;
+    for (const code of this.engine.input.takePresses()) this.onKey(code);
+    for (const tap of this.engine.input.takeTaps()) this.onTap(tap);
+
+    if (this.phase === 'lead') {
+      this.lead -= dt;
+      if (this.lead <= 0) this.beginFlow();
+      return;
+    }
+    if (this.phase === 'flow') {
+      this.fillT += dt;
+      while (this.phase === 'flow' && this.fillT >= L3.FILL_TIME) {
+        this.fillT -= L3.FILL_TIME;
+        this.tick();
+      }
+      return;
+    }
+    this.timer -= dt;
+    if (this.timer > 0) return;
+    if (this.phase === 'won') this.nextBoard();
+    else if (this.lives <= 0) this.finish(false);
+    else this.startBoard();
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Input                                                             */
+  /* ---------------------------------------------------------------- */
+
+  onKey(code) {
+    if (this.phase !== 'lead' && this.phase !== 'flow') return;
+    const move = MOVES[code];
+    if (move) {
+      this.cursor.x = clampTo(this.cursor.x + move.dx, this.spec.cols);
+      this.cursor.y = clampTo(this.cursor.y + move.dy, this.spec.rows);
+      this.engine.sfx('pick');
+      return;
+    }
+    if (code === 'Space' || code === 'Enter' || code === 'KeyX') this.turn(this.cursor.x, this.cursor.y);
+  }
+
+  onTap(tap) {
+    if (this.phase !== 'lead' && this.phase !== 'flow') return;
+    const x = Math.floor((tap.x - this.gx) / this.cell);
+    const y = Math.floor((tap.y - this.gy) / this.cell);
+    if (!this.grid.inside(x, y)) return;
+    this.cursor = { x, y };
+    this.turn(x, y);
+  }
+
+  turn(x, y) {
+    if (this.grid.rotateAt(x, y)) {
+      this.engine.sfx('spin');
+      return;
+    }
+    this.engine.sfx('fail');
+    this.toast = {
+      tone: C.amber,
+      title: 'That pipe is already wet.',
+      body: 'Once the connection is flowing through a piece, it is not yours to turn any more. Work ahead of the water.',
+    };
+    this.engine.announce(this.toast.title);
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* The water                                                         */
+  /* ---------------------------------------------------------------- */
+
+  beginFlow() {
+    this.phase = 'flow';
+    this.fillT = 0;
+    this.engine.sfx('spin');
+    if (!this.grid.start()) {
+      this.fail('Connection refused.', 'The first pipe never opened towards the test, so nothing ever left the host.');
+      return;
+    }
+    this.fresh = [{ x: 0, y: this.spec.srcRow }];
+    this.toast = {
+      tone: C.sea,
+      title: 'The pool is opening connections.',
+      body: 'Wet pipe is frozen. Keep turning the dry pieces in front of it.',
+    };
+    this.engine.announce('The connection is flowing.');
+    if (this.grid.connected) this.win();
+  }
+
+  tick() {
+    this.fresh = this.grid.advance();
+    if (this.grid.connected) {
+      this.win();
+      return;
+    }
+    if (this.grid.dead) {
+      this.fail('Connection refused.', 'The water ran into a closed pipe. On the host that reads as a timeout and a very confused developer.');
+      return;
+    }
+    if (!this.grid.canStillWin()) {
+      this.fail('No way through.', 'The water froze a piece you still needed. There is no route left to turn.');
+      return;
+    }
+    const gate = this.fresh.find((p) => p.x === this.spec.wallX && this.grid.isGate(p.y));
+    if (gate) {
+      this.toast = {
+        tone: C.teal,
+        title: `Through the published port · ${this.spec.port} → localhost:${this.mapped}`,
+        body: 'That crossing is the only hole in the wall, and Docker chose which host port it lands on.',
+      };
+      this.engine.sfx('pick');
+    }
+  }
+
+  win() {
+    const bonus = this.grid.dry * L3.POINTS_PER_DRY;
+    this.score += L3.POINTS_CONNECT + bonus;
+    this.connections += 1;
+    this.dryTotal += this.grid.dry;
+    this.phase = 'won';
+    this.timer = 2.8;
+    this.pushHud();
+    this.engine.sfx('pass');
+    this.toast = {
+      tone: C.green,
+      title: `Connected · +${L3.POINTS_CONNECT} and +${bonus} for ${this.grid.dry} dry pieces`,
+      body: `The test talks to ${this.service.label} on localhost:${this.mapped}, and the container never knew it was mapped.`,
+    };
+    this.engine.announce(this.toast.title);
+  }
+
+  fail(title, body) {
+    this.lives -= 1;
+    this.phase = 'lost';
+    this.timer = 2.6;
+    this.pushHud();
+    this.engine.sfx('fail');
+    this.toast = { tone: C.red, title, body };
+    this.engine.announce(`${title} ${body}`);
+  }
+
+  nextBoard() {
+    this.round += 1;
+    if (this.round >= L3.ROUNDS) return this.finish(true);
+    this.startBoard();
+  }
+
+  finish(won) {
+    this.engine.hooks.onLevelEnd({
+      levelId: 3,
+      won,
+      score: this.score,
+      stats: [
+        { label: 'Ports crossed', value: `${this.connections}/${L3.ROUNDS}` },
+        { label: 'Dry pipe left', value: this.dryTotal },
+        { label: 'Lives left', value: Math.max(0, this.lives) },
+      ],
+      takeaway: 'Nothing on the host can reach a port that was never published, and the host port is not the one in your config: ask the container for getMappedPort().',
+    });
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Drawing                                                           */
+  /* ---------------------------------------------------------------- */
+
+  draw(ctx) {
+    drawSky(ctx, 960, 540, HORIZON);
+    drawClouds(ctx, this.t, 960, HORIZON);
+    drawHarbour(ctx, 960, HORIZON);
+    drawSea(ctx, this.t, 960, 540, HORIZON);
+
+    this.drawHeader(ctx);
+    this.drawHost(ctx);
+    this.drawBoard(ctx);
+    this.drawWall(ctx);
+    this.drawTarget(ctx);
+    this.drawStrip(ctx);
+
+    if (this.phase === 'won') {
+      drawBanner(ctx, 960, 186, 'Connected', `localhost:${this.mapped} → ${this.service.label}:${this.spec.port}`, C.green);
+    } else if (this.phase === 'lost') {
+      drawBanner(ctx, 960, 186, this.toast.title, this.lives > 0 ? 'One life gone. The board is re-plumbed.' : 'No lives left.', C.red);
+    }
+  }
+
+  drawHeader(ctx) {
+    text(ctx, `BOARD ${this.round + 1} / ${L3.ROUNDS}`, 40, 68, { size: 13, weight: 800, color: C.navy, font: MONO });
+  }
+
+  /** The clock, parked inside the strip where the HUD chips cannot cover it. */
+  drawClock(ctx) {
+    const waiting = this.phase === 'lead';
+    const right = STRIP.x + STRIP.w - 20;
+    const tone = !waiting ? C.sea : (this.lead < 3 ? C.red : (this.lead < 6 ? C.amber : C.teal));
+    const label = waiting
+      ? `pool opens in ${Math.max(0, this.lead).toFixed(1)}s`
+      : 'the connection is flowing';
+    text(ctx, label, right, STRIP.y + 26, {
+      size: 14, weight: 800, color: tone, align: 'right',
+    });
+    const value = waiting ? this.lead / this.spec.lead : 1;
+    meter(ctx, right - 190, STRIP.y + 36, 190, 8, value, { color: tone });
+    text(ctx, 'arrows move · space or click turns a piece', right, STRIP.y + 62, {
+      size: 10, weight: 700, color: C.slate, align: 'right', font: MONO,
+    });
+  }
+
+  /** The test bench on the host side, wired into the first cell. */
+  drawHost(ctx) {
+    const y = this.gy + this.spec.srcRow * this.cell + this.cell / 2;
+    panel(ctx, 40, 120, 196, 104, { fill: 'rgba(8,26,46,.92)', radius: 12 });
+    text(ctx, 'YOUR TEST · THE HOST', 56, 142, { size: 11, weight: 800, color: C.slate, font: MONO });
+    text(ctx, '@Test void queries()', 56, 164, { size: 12, weight: 600, color: C.cream, font: MONO });
+    text(ctx, `db.getMappedPort(${this.spec.port})`, 56, 184, { size: 12, weight: 600, color: C.cream, font: MONO });
+    text(ctx, `→ localhost:${this.mapped}`, 56, 204, { size: 12, weight: 700, color: C.teal, font: MONO });
+
+    const wet = this.grid.isFilled(0, this.spec.srcRow);
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineWidth = 14;
+    ctx.strokeStyle = C.navyDeep;
+    ctx.beginPath();
+    ctx.moveTo(236, y);
+    ctx.lineTo(this.gx + 4, y);
+    ctx.stroke();
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = wet ? C.sea : 'rgba(247,241,227,.7)';
+    ctx.beginPath();
+    ctx.moveTo(236, y);
+    ctx.lineTo(this.gx + 4, y);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  drawBoard(ctx) {
+    const { cols, rows } = this.spec;
+    panel(ctx, this.gx - 8, this.gy - 8, cols * this.cell + 16, rows * this.cell + 16, {
+      fill: 'rgba(8,26,46,.86)', radius: 14,
+    });
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) this.drawCell(ctx, x, y);
+    }
+    const cur = this.cursor;
+    const px = this.gx + cur.x * this.cell;
+    const py = this.gy + cur.y * this.cell;
+    const live = this.phase === 'lead' || this.phase === 'flow';
+    roundRect(ctx, px + 2, py + 2, this.cell - 4, this.cell - 4, 8);
+    ctx.strokeStyle = this.grid.isFilled(cur.x, cur.y) ? C.slate : (live ? C.amber : C.slate);
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  drawCell(ctx, x, y) {
+    const size = this.cell;
+    const px = this.gx + x * size;
+    const py = this.gy + y * size;
+    const cx = px + size / 2;
+    const cy = py + size / 2;
+    const cell = this.grid.at(x, y);
+    const wet = this.grid.isFilled(x, y);
+    const fresh = this.fresh.some((p) => p.x === x && p.y === y);
+
+    roundRect(ctx, px + 2, py + 2, size - 4, size - 4, 8);
+    ctx.fillStyle = wet ? 'rgba(42,156,201,.16)' : 'rgba(255,255,255,.05)';
+    ctx.fill();
+
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineWidth = Math.max(10, size * 0.3);
+    ctx.strokeStyle = C.ink;
+    strokeArms(ctx, cell.mask, cx, cy, size);
+    ctx.lineWidth = Math.max(5, size * 0.17);
+    ctx.strokeStyle = wet ? C.sea : 'rgba(247,241,227,.8)';
+    if (fresh && this.phase === 'flow') {
+      ctx.globalAlpha = 0.5 + 0.5 * Math.min(1, this.fillT / L3.FILL_TIME);
+    }
+    strokeArms(ctx, cell.mask, cx, cy, size);
+    ctx.restore();
+  }
+
+  /** The wall, with a teal opening on every published port. */
+  drawWall(ctx) {
+    const { rows, wallX } = this.spec;
+    const wx = this.gx + wallX * this.cell;
+    const top = this.gy;
+    const bottom = this.gy + rows * this.cell;
+
+    text(ctx, 'host', this.gx, this.gy - 18, { size: 11, weight: 800, color: C.navy, font: MONO });
+    text(ctx, 'docker network', this.gx + this.spec.cols * this.cell, this.gy - 18, {
+      size: 11, weight: 800, color: C.navy, align: 'right', font: MONO,
+    });
+    const chip = `published :${this.spec.port}`;
+    const chipW = chip.length * 6.6 + 18;
+    panel(ctx, wx - chipW / 2, this.gy - 30, chipW, 18, { fill: 'rgba(46,196,182,.9)', stroke: 'rgba(8,26,46,.4)', radius: 9 });
+    text(ctx, chip, wx, this.gy - 20, {
+      size: 10, weight: 800, color: C.navyDeep, align: 'center', baseline: 'middle', font: MONO,
+    });
+
+    for (let y = 0; y < rows; y++) {
+      const y0 = top + y * this.cell;
+      if (this.grid.isGate(y)) {
+        roundRect(ctx, wx - 4, y0 + 6, 8, this.cell - 12, 4);
+        ctx.fillStyle = 'rgba(46,196,182,.25)';
+        ctx.fill();
+        ctx.strokeStyle = C.teal;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        continue;
+      }
+      ctx.fillStyle = 'rgba(18,38,58,.96)';
+      ctx.fillRect(wx - 5, y0, 10, this.cell);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(wx - 5, y0, 10, this.cell);
+      ctx.clip();
+      ctx.strokeStyle = 'rgba(125,149,171,.5)';
+      ctx.lineWidth = 2;
+      for (let h = y0 - 10; h < y0 + this.cell + 10; h += 8) {
+        ctx.beginPath();
+        ctx.moveTo(wx - 6, h);
+        ctx.lineTo(wx + 6, h - 10);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+    ctx.strokeStyle = 'rgba(125,149,171,.45)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(wx, top - 6);
+    ctx.lineTo(wx, bottom + 6);
+    ctx.stroke();
+  }
+
+  /** The container waiting on the far side. */
+  drawTarget(ctx) {
+    const { cols, dstRow } = this.spec;
+    const y = this.gy + dstRow * this.cell + this.cell / 2;
+    const x = this.gx + cols * this.cell + 26;
+    const wet = this.grid.isFilled(cols - 1, dstRow) && opens(this.grid.at(cols - 1, dstRow).mask, 2);
+
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineWidth = 14;
+    ctx.strokeStyle = C.navyDeep;
+    ctx.beginPath();
+    ctx.moveTo(x - 30, y);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = wet ? C.sea : 'rgba(247,241,227,.7)';
+    ctx.beginPath();
+    ctx.moveTo(x - 30, y);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    ctx.restore();
+
+    drawContainer(ctx, x, y - 32, 92, 64, this.service.color, { label: this.service.label });
+    text(ctx, `:${this.spec.port}`, x + 46, y + 48, {
+      size: 12, weight: 700, color: C.cream, align: 'center', font: MONO,
+    });
+  }
+
+  drawStrip(ctx) {
+    panel(ctx, STRIP.x, STRIP.y, STRIP.w, STRIP.h, { fill: 'rgba(8,26,46,.95)', radius: 12 });
+    text(ctx, this.toast.title, STRIP.x + 20, STRIP.y + 24, { size: 15, weight: 800, color: this.toast.tone });
+    const lines = wrap(this.toast.body, 88).slice(0, 2);
+    lines.forEach((line, i) => {
+      text(ctx, line, STRIP.x + 20, STRIP.y + 44 + i * 15, { size: 12, weight: 500, color: C.cream });
+    });
+    this.drawClock(ctx);
+  }
+}
+
+/** Stroke one arm from the middle of the cell to every open side. */
+function strokeArms(ctx, mask, cx, cy, size) {
+  const reach = size / 2 - 1;
+  for (const dir of DIRS) {
+    if (!opens(mask, dir.bit)) continue;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + dir.dx * reach, cy + dir.dy * reach);
+    ctx.stroke();
+  }
+}
+
+function clampTo(value, size) {
+  return Math.max(0, Math.min(size - 1, value));
+}
+
+function wrap(str, width) {
+  const lines = [];
+  let line = '';
+  for (const word of String(str).split(' ')) {
+    if ((line + word).length > width) {
+      lines.push(line.trim());
+      line = '';
+    }
+    line += `${word} `;
+  }
+  if (line.trim()) lines.push(line.trim());
+  return lines;
+}
+
+return { PipeDreamLevel };
+};
+
+__modules['src/levels/level4-ryuk.js'] = () => {
+/**
+ * Level 4 — Ryuk. A shared Docker host, littered with leftovers from several
+ * builds at once. You are the reaper: walk the host and collect everything
+ * carrying your own session label, and nothing else. The resources still
+ * moving belong to builds that are running right now.
+ */
+
+const { C, MONO, drawBanner, drawClouds, drawHarbour, drawSea, drawSky, meter, panel, roundRect, text, } = __require('src/draw.js');
+const { mulberry32, randomSeed } = __require('src/rng.js');
+const { DIRS, HostBoard, L4, SPOILS } = __require('src/rules.js');
+const HORIZON = 220;
+/** The HUD chips own the top 44px, so the host starts well below them. */
+const AREA = { x: 300, y: 88, w: 620, h: 330 };
+const SIDE = { x: 40, w: 226 };
+const STRIP = { x: 40, y: 430, w: 880, h: 78 };
+const MAX_CELL = 40;
+
+const MOVES = {
+  ArrowUp: 'n', ArrowDown: 's', ArrowLeft: 'w', ArrowRight: 'e',
+  KeyW: 'n', KeyS: 's', KeyA: 'w', KeyD: 'e',
+};
+
+const KIND_COLOR = {
+  container: C.teal,
+  network: C.whaleLite,
+  volume: C.amber,
+};
+
+class RyukLevel {
+  constructor() {
+    this.id = 4;
+  }
+
+  enter(engine) {
+    this.engine = engine;
+    this.rng = mulberry32(randomSeed());
+    this.t = 0;
+    this.round = 0;
+    this.lives = L4.LIVES;
+    this.score = 0;
+    this.cleaned = 0;
+    this.reapedTotal = 0;
+    this.startBoard();
+    this.pushHud();
+  }
+
+  pushHud() {
+    this.engine.hud({ level: 'Level 4 · Ryuk', score: this.score, lives: this.lives });
+  }
+
+  startBoard() {
+    this.spec = L4.BOARDS[this.round];
+    this.board = new HostBoard({ rng: this.rng, ...this.spec });
+    this.phase = 'play';
+    this.want = null;
+    this.stepT = 0;
+    // A second of grace: nothing should die before it has moved once.
+    this.strayT = -1;
+    this.timer = 0;
+    this.layout();
+    this.toast = {
+      tone: C.teal,
+      title: `Your session is ${this.board.session} — reap that label and only that label.`,
+      body: `${this.spec.mine} resources are yours. The rest belong to builds sharing this host; touching one is how you become the person who broke CI.`,
+    };
+    this.engine.announce(`Host ${this.round + 1}. Your session label is ${this.board.session}.`);
+  }
+
+  /** Cell size and origin, so any host plan lands centred in the same box. */
+  layout() {
+    const { cols, rows } = this.board;
+    this.cell = Math.min(Math.floor(AREA.w / cols), Math.floor(AREA.h / rows), MAX_CELL);
+    this.gx = AREA.x + Math.round((AREA.w - cols * this.cell) / 2);
+    this.gy = AREA.y + Math.round((AREA.h - rows * this.cell) / 2);
+  }
+
+  update(dt) {
+    this.t += dt;
+    for (const code of this.engine.input.takePresses()) this.onKey(code);
+    for (const tap of this.engine.input.takeTaps()) this.onTap(tap);
+    // Held keys are only a fallback, for the player who is already leaning on a
+    // direction when a host loads. Scanning them unconditionally used to run
+    // after the press queue and overwrite it, so turning while still holding the
+    // previous key was silently thrown away — every frame, until you let go.
+    if (!this.want) {
+      for (const code of Object.keys(MOVES)) {
+        if (this.engine.input.isHeld(code)) {
+          this.want = MOVES[code];
+          break;
+        }
+      }
+    }
+
+    if (this.phase === 'play') {
+      this.runBoard(dt);
+      return;
+    }
+    this.timer -= dt;
+    if (this.timer > 0) return;
+    if (this.phase === 'won') this.nextBoard();
+    else if (this.lives <= 0) this.finish(false);
+    else this.startBoard();
+  }
+
+  runBoard(dt) {
+    this.stepT += dt;
+    while (this.phase === 'play' && this.stepT >= L4.STEP) {
+      this.stepT -= L4.STEP;
+      this.stepReaper();
+    }
+    this.strayT += dt;
+    while (this.phase === 'play' && this.strayT >= L4.STRAY_STEP) {
+      this.strayT -= L4.STRAY_STEP;
+      const before = this.board.strays.map((s) => ({ x: s.x, y: s.y }));
+      this.board.stepStrays();
+      if (this.board.strayHit(before)) this.caught();
+    }
+    if (this.phase === 'play' && this.board.tick(dt)) this.timeout();
+  }
+
+  stepReaper() {
+    const wanted = this.want && dirOfName(this.want);
+    const { reaper } = this.board;
+    if (wanted && !this.board.isWall(reaper.x + wanted.dx, reaper.y + wanted.dy)) reaper.dir = wanted;
+    if (!reaper.dir) return;
+
+    const step = this.board.moveReaper(reaper.dir);
+    if (!step.moved) return;
+    if (step.item) this.picked(step.item);
+    if (this.phase === 'play' && this.board.strayHit()) this.caught();
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Input                                                             */
+  /* ---------------------------------------------------------------- */
+
+  onKey(code) {
+    if (this.phase !== 'play') return;
+    if (MOVES[code]) this.want = MOVES[code];
+  }
+
+  /** Tapping the host steers towards the tap, which is all a phone can do. */
+  onTap(tap) {
+    if (this.phase !== 'play') return;
+    const { reaper } = this.board;
+    const cx = this.gx + (reaper.x + 0.5) * this.cell;
+    const cy = this.gy + (reaper.y + 0.5) * this.cell;
+    const dx = tap.x - cx;
+    const dy = tap.y - cy;
+    if (Math.abs(dx) < this.cell / 2 && Math.abs(dy) < this.cell / 2) return;
+    this.want = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'e' : 'w') : (dy > 0 ? 's' : 'n');
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Outcomes                                                          */
+  /* ---------------------------------------------------------------- */
+
+  picked(item) {
+    const spoil = SPOILS.find((s) => s.kind === item.kind);
+    if (!item.mine) {
+      this.fail(
+        'That label was not yours.',
+        `The ${spoil.label} you just removed was tagged session=${item.session}. Somewhere another build is now staring at a container that vanished mid-test.`,
+      );
+      return;
+    }
+    this.score += L4.POINTS_ITEM;
+    this.reapedTotal += 1;
+    this.pushHud();
+    this.engine.sfx('pick');
+    this.toast = {
+      tone: C.green,
+      title: `Reaped a ${spoil.label} · +${L4.POINTS_ITEM}`,
+      body: `Tagged session=${this.board.session}, so it was always going to go. ${this.board.remaining} left on this host.`,
+    };
+    if (this.board.over) this.win();
+  }
+
+  caught() {
+    this.fail(
+      'A running build walked into you.',
+      'Those resources are tagged with a session that is still alive. Ryuk waits for its own containers to be done; it never fights another build for the host.',
+    );
+  }
+
+  timeout() {
+    this.fail(
+      'The host is still dirty.',
+      `Time ran out with ${this.board.remaining} of your own resources left behind. That is the leak everyone ends up blaming on Docker.`,
+    );
+  }
+
+  win() {
+    const bonus = this.board.bonus;
+    this.score += bonus;
+    this.cleaned += 1;
+    this.phase = 'won';
+    this.timer = 2.8;
+    this.pushHud();
+    this.engine.sfx('pass');
+    this.toast = {
+      tone: C.green,
+      title: `Host clean · +${bonus} for ${Math.round(this.board.left)}s to spare`,
+      body: `Every resource labelled ${this.board.session} is gone and every other build on this host never noticed you were here.`,
+    };
+    this.engine.announce(this.toast.title);
+  }
+
+  fail(title, body) {
+    this.lives -= 1;
+    this.phase = 'lost';
+    this.timer = 2.8;
+    this.pushHud();
+    this.engine.sfx('fail');
+    this.toast = { tone: C.red, title, body };
+    this.engine.announce(`${title} ${body}`);
+  }
+
+  nextBoard() {
+    this.round += 1;
+    if (this.round >= L4.ROUNDS) return this.finish(true);
+    this.startBoard();
+  }
+
+  finish(won) {
+    this.engine.hooks.onLevelEnd({
+      levelId: 4,
+      won,
+      score: this.score,
+      stats: [
+        { label: 'Hosts cleaned', value: `${this.cleaned}/${L4.ROUNDS}` },
+        { label: 'Resources reaped', value: this.reapedTotal },
+        { label: 'Lives left', value: Math.max(0, this.lives) },
+      ],
+      takeaway: 'Testcontainers labels everything it creates with a session id, and Ryuk reaps exactly that label. That is why you never need a shutdown hook, and why cleanup is safe on a host shared with other builds.',
+    });
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Drawing                                                           */
+  /* ---------------------------------------------------------------- */
+
+  draw(ctx) {
+    drawSky(ctx, 960, 540, HORIZON);
+    drawClouds(ctx, this.t, 960, HORIZON);
+    drawHarbour(ctx, 960, HORIZON);
+    drawSea(ctx, this.t, 960, 540, HORIZON);
+
+    text(ctx, `HOST ${this.round + 1} / ${L4.ROUNDS}`, 40, 68, {
+      size: 18, weight: 800, color: C.navy, font: MONO,
+    });
+    this.drawSide(ctx);
+    this.drawMaze(ctx);
+    this.drawItems(ctx);
+    this.drawStrays(ctx);
+    this.drawReaper(ctx);
+    this.drawStrip(ctx);
+
+    if (this.phase === 'won') {
+      drawBanner(ctx, 960, 186, 'Host clean', `Nothing left tagged ${this.board.session}`, C.green);
+    } else if (this.phase === 'lost') {
+      drawBanner(ctx, 960, 186, this.toast.title, this.lives > 0 ? 'One life gone. A fresh host, a fresh session.' : 'No lives left.', C.red);
+    }
+  }
+
+  drawSide(ctx) {
+    panel(ctx, SIDE.x, 88, SIDE.w, 88, { fill: 'rgba(8,26,46,.95)', radius: 12 });
+    text(ctx, 'YOUR SESSION LABEL', SIDE.x + 16, 110, {
+      size: 10, weight: 800, color: C.slate, font: MONO, letterSpacing: '1px',
+    });
+    text(ctx, 'org.testcontainers', SIDE.x + 16, 132, { size: 12, weight: 600, color: C.cream, font: MONO });
+    text(ctx, `.session=${this.board.session}`, SIDE.x + 16, 150, { size: 14, weight: 800, color: C.teal, font: MONO });
+    text(ctx, 'reap this and nothing else', SIDE.x + 16, 166, { size: 10, weight: 600, color: C.slate });
+
+    panel(ctx, SIDE.x, 188, SIDE.w, 166, { fill: 'rgba(8,26,46,.95)', radius: 12 });
+    text(ctx, 'ON THIS HOST', SIDE.x + 16, 210, {
+      size: 10, weight: 800, color: C.slate, font: MONO, letterSpacing: '1px',
+    });
+    SPOILS.forEach((spoil, i) => {
+      const y = 234 + i * 24;
+      drawSpoil(ctx, spoil.kind, SIDE.x + 26, y, 19, KIND_COLOR[spoil.kind], true);
+      text(ctx, `${spoil.label} · yours`, SIDE.x + 44, y + 4, { size: 12, weight: 700, color: C.cream });
+    });
+    drawSpoil(ctx, 'container', SIDE.x + 26, 312, 19, C.slate, false);
+    text(ctx, 'another session', SIDE.x + 44, 316, { size: 12, weight: 700, color: C.red });
+    drawGhost(ctx, SIDE.x + 26, 338, 19, C.red, this.t);
+    text(ctx, 'a build still running', SIDE.x + 44, 342, { size: 12, weight: 700, color: C.red });
+
+    panel(ctx, SIDE.x, 364, SIDE.w, 52, { fill: 'rgba(8,26,46,.95)', radius: 12 });
+    text(ctx, 'LEFT TO REAP', SIDE.x + 16, 386, {
+      size: 10, weight: 800, color: C.slate, font: MONO, letterSpacing: '1px',
+    });
+    text(ctx, String(this.board.remaining), SIDE.x + SIDE.w - 16, 402, {
+      size: 26, weight: 800, color: C.teal, align: 'right', font: MONO,
+    });
+    text(ctx, `${this.board.reaped} reaped`, SIDE.x + 16, 404, { size: 12, weight: 600, color: C.cream });
+  }
+
+  drawMaze(ctx) {
+    const { cols, rows } = this.board;
+    const w = cols * this.cell;
+    const h = rows * this.cell;
+    panel(ctx, this.gx - 8, this.gy - 8, w + 16, h + 16, { fill: 'rgba(8,26,46,.94)', radius: 14 });
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        if (!this.board.isWall(x, y)) continue;
+        const px = this.gx + x * this.cell;
+        const py = this.gy + y * this.cell;
+        roundRect(ctx, px, py, this.cell, this.cell, 3);
+        ctx.fillStyle = '#173d64';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(138,184,238,.18)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+    }
+  }
+
+  drawItems(ctx) {
+    for (const item of this.board.items) {
+      if (item.taken) continue;
+      const cx = this.gx + (item.x + 0.5) * this.cell;
+      const cy = this.gy + (item.y + 0.5) * this.cell;
+      const color = item.mine ? KIND_COLOR[item.kind] : C.slate;
+      drawSpoil(ctx, item.kind, cx, cy - 5, this.cell * 0.52, color, item.mine);
+      text(ctx, item.mine ? this.board.session : item.session, cx, cy + this.cell * 0.4, {
+        size: 9, weight: 800, color: item.mine ? C.teal : C.red, align: 'center', font: MONO,
+      });
+    }
+  }
+
+  drawStrays(ctx) {
+    this.board.strays.forEach((stray, i) => {
+      const cx = this.gx + (stray.x + 0.5) * this.cell;
+      const cy = this.gy + (stray.y + 0.5) * this.cell;
+      const color = [C.red, C.purple, C.orange][i % 3];
+      drawGhost(ctx, cx, cy - 4, this.cell * 0.58, color, this.t + i);
+      // Above the glyph: a stray standing on a resource must not steal its label.
+      text(ctx, stray.session, cx, cy - this.cell * 0.34, {
+        size: 9, weight: 800, color, align: 'center', font: MONO,
+      });
+    });
+  }
+
+  drawReaper(ctx) {
+    const { reaper } = this.board;
+    const cx = this.gx + (reaper.x + 0.5) * this.cell;
+    const cy = this.gy + (reaper.y + 0.5) * this.cell;
+    const r = this.cell * 0.36;
+    const facing = reaper.dir ? Math.atan2(reaper.dir.dy, reaper.dir.dx) : 0;
+    const gap = (0.08 + 0.14 * Math.abs(Math.sin(this.t * 9))) * Math.PI;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, r, facing + gap, facing - gap);
+    ctx.closePath();
+    ctx.fillStyle = C.amber;
+    ctx.fill();
+    ctx.strokeStyle = C.navyDeep;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx - Math.sin(facing) * r * 0.35, cy + Math.cos(facing) * r * -0.35, 2, 0, Math.PI * 2);
+    ctx.fillStyle = C.navyDeep;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  drawStrip(ctx) {
+    panel(ctx, STRIP.x, STRIP.y, STRIP.w, STRIP.h, { fill: 'rgba(8,26,46,.95)', radius: 12 });
+    text(ctx, this.toast.title, STRIP.x + 20, STRIP.y + 24, { size: 15, weight: 800, color: this.toast.tone });
+    wrap(this.toast.body, 84).slice(0, 2).forEach((line, i) => {
+      text(ctx, line, STRIP.x + 20, STRIP.y + 44 + i * 15, { size: 12, weight: 500, color: C.cream });
+    });
+
+    const right = STRIP.x + STRIP.w - 20;
+    const left = Math.max(0, this.board.left);
+    const tone = left < 8 ? C.red : (left < 16 ? C.amber : C.teal);
+    text(ctx, `${left.toFixed(1)}s on the host`, right, STRIP.y + 26, {
+      size: 14, weight: 800, color: tone, align: 'right',
+    });
+    meter(ctx, right - 190, STRIP.y + 36, 190, 8, left / this.spec.seconds, { color: tone });
+    text(ctx, 'arrows steer · tap the host to turn', right, STRIP.y + 62, {
+      size: 10, weight: 700, color: C.slate, align: 'right', font: MONO,
+    });
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Glyphs                                                              */
+/* ------------------------------------------------------------------ */
+
+/** The three things Testcontainers leaves behind, drawn small enough to litter. */
+function drawSpoil(ctx, kind, cx, cy, size, color, mine) {
+  const s = size;
+  ctx.save();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = mine ? C.cream : 'rgba(247,241,227,.45)';
+  ctx.fillStyle = color;
+  ctx.globalAlpha = mine ? 1 : 0.55;
+
+  if (kind === 'container') {
+    roundRect(ctx, cx - s / 2, cy - s * 0.34, s, s * 0.68, 3);
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.strokeStyle = 'rgba(8,26,46,.5)';
+    for (const off of [-0.18, 0.18]) {
+      ctx.moveTo(cx + s * off, cy - s * 0.26);
+      ctx.lineTo(cx + s * off, cy + s * 0.26);
+    }
+    ctx.stroke();
+  } else if (kind === 'network') {
+    ctx.beginPath();
+    ctx.arc(cx, cy, s * 0.36, 0, Math.PI * 2);
+    ctx.stroke();
+    for (let i = 0; i < 3; i++) {
+      const a = -Math.PI / 2 + (i * 2 * Math.PI) / 3;
+      ctx.beginPath();
+      ctx.arc(cx + Math.cos(a) * s * 0.36, cy + Math.sin(a) * s * 0.36, s * 0.13, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else {
+    ctx.beginPath();
+    ctx.ellipse(cx, cy - s * 0.24, s * 0.34, s * 0.14, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillRect(cx - s * 0.34, cy - s * 0.24, s * 0.68, s * 0.48);
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + s * 0.24, s * 0.34, s * 0.14, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/** A build that has not finished yet, still wandering the host. */
+function drawGhost(ctx, cx, cy, size, color, t) {
+  const r = size * 0.42;
+  const bob = Math.sin(t * 4) * 1.5;
+  ctx.save();
+  ctx.translate(cx, cy + bob);
+  ctx.beginPath();
+  ctx.arc(0, 0, r, Math.PI, 0);
+  ctx.lineTo(r, r * 0.7);
+  for (let i = 0; i < 3; i++) {
+    const x = r - ((i * 2 + 1) * r) / 3;
+    ctx.quadraticCurveTo(x, r * 1.25, x - r / 3, r * 0.7);
+  }
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.strokeStyle = C.navyDeep;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  for (const off of [-r * 0.36, r * 0.36]) {
+    ctx.beginPath();
+    ctx.arc(off, -r * 0.15, r * 0.22, 0, Math.PI * 2);
+    ctx.fillStyle = C.cream;
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(off, -r * 0.15, r * 0.1, 0, Math.PI * 2);
+    ctx.fillStyle = C.navyDeep;
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function dirOfName(name) {
+  return DIRS.find((d) => d.name === name);
+}
+
+function wrap(str, width) {
+  const lines = [];
+  let line = '';
+  for (const word of String(str).split(' ')) {
+    if ((line + word).length > width) {
+      lines.push(line.trim());
+      line = '';
+    }
+    line += `${word} `;
+  }
+  if (line.trim()) lines.push(line.trim());
+  return lines;
+}
+
+return { RyukLevel };
+};
+
+__modules['src/main.js'] = () => {
+/**
+ * Wiring: overlays, level progression, HUD, touch controls and persistence.
+ * All the rules live in rules.js; all the drawing lives in the level scenes.
+ */
+
+const { createAudio } = __require('src/audio.js');
+const { Engine } = __require('src/engine.js');
+const { WaitStrategiesLevel } = __require('src/levels/level1-wait.js');
+const { FlakyDetectiveLevel } = __require('src/levels/level2-flaky.js');
+const { PipeDreamLevel } = __require('src/levels/level3-pipes.js');
+const { RyukLevel } = __require('src/levels/level4-ryuk.js');
+const { LEVELS, rank, totalScore } = __require('src/rules.js');
+const { isUnlocked, load, recordResult, save } = __require('src/store.js');
+const SCENES = {
+  1: WaitStrategiesLevel, 2: FlakyDetectiveLevel, 3: PipeDreamLevel, 4: RyukLevel,
+};
+
+const TOUCH_CONTROLS = {
+  1: [{ code: 'Key1', label: 'port' }, { code: 'Key2', label: 'log' }, { code: 'Key3', label: 'http' }, { code: 'Key4', label: 'sleep' }],
+  2: [],
+  3: [{ code: 'ArrowLeft', label: '←' }, { code: 'ArrowUp', label: '↑' },
+    { code: 'ArrowDown', label: '↓' }, { code: 'ArrowRight', label: '→' },
+    { code: 'Space', label: 'turn' }],
+  4: [{ code: 'ArrowLeft', label: '←' }, { code: 'ArrowUp', label: '↑' },
+    { code: 'ArrowDown', label: '↓' }, { code: 'ArrowRight', label: '→' }],
+};
+
+const els = {
+  canvas: document.getElementById('game'),
+  overlay: document.getElementById('overlay'),
+  levelnav: document.getElementById('levelnav'),
+  soundBtn: document.getElementById('soundBtn'),
+  hudLevel: document.getElementById('hudLevel'),
+  hudScore: document.getElementById('hudScore'),
+  hudLives: document.getElementById('hudLives'),
+  live: document.getElementById('live'),
+  touchbar: document.getElementById('touchbar'),
+  howtoGrid: document.getElementById('howtoGrid'),
+};
+
+let state = load();
+let current = null;      // level id being played, null while an overlay owns the screen
+let audio;
+let engine;
+
+/* ------------------------------------------------------------------ */
+/* HUD and announcements                                               */
+/* ------------------------------------------------------------------ */
+
+function onHud({ level, score, lives }) {
+  if (level) els.hudLevel.textContent = level;
+  if (typeof score === 'number') els.hudScore.textContent = score.toLocaleString('en-US');
+  if (typeof lives === 'number') {
+    els.hudLives.textContent = lives > 0 ? '♥'.repeat(lives) : '—';
+    els.hudLives.dataset.low = String(lives <= 1);
+  }
+}
+
+let lastAnnounced = '';
+function announce(message) {
+  if (!message || message === lastAnnounced) return;
+  lastAnnounced = message;
+  els.live.textContent = message;
+}
+
+/* ------------------------------------------------------------------ */
+/* Overlays                                                            */
+/* ------------------------------------------------------------------ */
+
+function showOverlay(card) {
+  els.overlay.replaceChildren(card);
+  els.overlay.hidden = false;
+  els.touchbar.hidden = true;
+  const focusable = card.querySelector('button');
+  if (focusable) focusable.focus();
+}
+
+function hideOverlay() {
+  els.overlay.hidden = true;
+  els.overlay.replaceChildren();
+}
+
+function card({ eyebrow, title, body, takeaway, stats, actions }) {
+  const el = document.createElement('div');
+  el.className = 'card';
+  if (eyebrow) el.append(h('p', { class: 'eyebrow' }, eyebrow));
+  el.append(h('h2', {}, title));
+  for (const paragraph of [].concat(body || [])) el.append(h('p', {}, paragraph));
+  if (stats && stats.length) {
+    const wrap = h('div', { class: 'stats' });
+    for (const s of stats) wrap.append(h('div', {}, h('b', {}, String(s.value)), h('span', {}, s.label)));
+    el.append(wrap);
+  }
+  if (takeaway) el.append(h('p', { class: 'takeaway' }, takeaway));
+  if (actions && actions.length) {
+    const row = h('div', { class: 'btn-row' });
+    for (const a of actions) {
+      const btn = h('button', { class: a.ghost ? 'btn ghost' : 'btn', type: 'button' }, a.label);
+      btn.addEventListener('click', a.onClick);
+      row.append(btn);
+    }
+    el.append(row);
+  }
+  return el;
+}
+
+function h(tag, attrs = {}, ...children) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+  for (const child of children) el.append(child);
+  return el;
+}
+
+function showMenu() {
+  current = null;
+  engine.setScene(null);
+  const total = totalScore(state.best);
+  const next = LEVELS.find((l) => isUnlocked(state, l.id) && !state.best[l.id]) || LEVELS[state.unlocked - 1];
+  showOverlay(card({
+    eyebrow: 'Spin · Test · Clean · Repeat',
+    title: 'Testcontainers: the game',
+    body: [
+      'One level per thing that actually breaks a test suite: readiness, flakiness, networking and cleanup.',
+      total ? `Career score ${total.toLocaleString('en-US')} · ${rank(total)}` : 'Nothing is more real than a flaky test. Start with wait strategies.',
+    ],
+    actions: [
+      { label: `Play level ${next.id} · ${next.name}`, onClick: () => startLevel(next.id) },
+      ...(total ? [{ label: 'Reset progress', ghost: true, onClick: resetProgress }] : []),
+    ],
+  }));
+  announce('Main menu.');
+  onHud({ level: 'Menu', score: total, lives: 0 });
+}
+
+function showBrief(levelId) {
+  const level = LEVELS[levelId - 1];
+  showOverlay(card({
+    eyebrow: `Level ${level.id}`,
+    title: level.name,
+    body: [level.brief, level.controls],
+    actions: [
+      { label: 'Start', onClick: () => run(levelId) },
+      { label: 'Menu', ghost: true, onClick: showMenu },
+    ],
+  }));
+  announce(`Level ${level.id}, ${level.name}. ${level.brief} ${level.controls}`);
+}
+
+function showResult({ levelId, won, score, stats, takeaway }) {
+  const level = LEVELS[levelId - 1];
+  const unlockedNext = won && levelId < LEVELS.length;
+  const actions = [];
+  if (unlockedNext) actions.push({ label: `Level ${levelId + 1} · ${LEVELS[levelId].name}`, onClick: () => startLevel(levelId + 1) });
+  actions.push({ label: won ? 'Play again' : 'Retry level', ghost: unlockedNext, onClick: () => run(levelId) });
+  actions.push({ label: 'Menu', ghost: true, onClick: showMenu });
+
+  showOverlay(card({
+    eyebrow: `Level ${level.id} · ${level.name}`,
+    title: won ? 'Suite green' : 'Suite red',
+    body: won ? `You scored ${score.toLocaleString('en-US')} points.` : 'Out of lives. Nothing a rerun cannot fix.',
+    stats,
+    takeaway,
+    actions,
+  }));
+  announce(`${won ? 'Level complete' : 'Level failed'}. Score ${score}. ${takeaway}`);
+}
+
+function showPause() {
+  showOverlay(card({
+    eyebrow: 'Paused',
+    title: 'Take your time',
+    body: 'The suite will wait. It always does.',
+    actions: [
+      { label: 'Resume', onClick: resume },
+      { label: 'Restart level', ghost: true, onClick: () => run(current) },
+      { label: 'Menu', ghost: true, onClick: showMenu },
+    ],
+  }));
+  announce('Paused.');
+}
+
+/* ------------------------------------------------------------------ */
+/* Flow                                                                */
+/* ------------------------------------------------------------------ */
+
+function startLevel(levelId) {
+  audio.unlock();
+  if (!isUnlocked(state, levelId)) return;
+  showBrief(levelId);
+}
+
+function run(levelId) {
+  audio.unlock();
+  current = levelId;
+  hideOverlay();
+  renderTouchbar(levelId);
+  engine.setScene(new SCENES[levelId]());
+  els.canvas.focus({ preventScroll: true });
+  syncNav();
+}
+
+function resume() {
+  hideOverlay();
+  renderTouchbar(current);
+  engine.setPaused(false);
+  els.canvas.focus({ preventScroll: true });
+}
+
+function onLevelEnd(result) {
+  state = recordResult(state, result);
+  save(state);
+  current = null;
+  engine.setScene(null);
+  syncNav();
+  renderHowto();
+  showResult(result);
+}
+
+function resetProgress() {
+  state = recordResult({ unlocked: 1, best: {}, sound: state.sound }, { levelId: 1, won: false, score: 0 });
+  state.best = {};
+  save(state);
+  syncNav();
+  renderHowto();
+  showMenu();
+}
+
+/* ------------------------------------------------------------------ */
+/* Chrome                                                              */
+/* ------------------------------------------------------------------ */
+
+function syncNav() {
+  els.levelnav.replaceChildren();
+  for (const level of LEVELS) {
+    const unlocked = isUnlocked(state, level.id);
+    const btn = h('button', { type: 'button' }, `${level.id}. ${level.name}`);
+    if (!unlocked) {
+      btn.disabled = true;
+      btn.title = 'Finish the previous level to unlock';
+    }
+    btn.setAttribute('aria-current', String(current === level.id));
+    btn.addEventListener('click', () => startLevel(level.id));
+    els.levelnav.append(btn);
+  }
+}
+
+function renderHowto() {
+  els.howtoGrid.replaceChildren();
+  for (const level of LEVELS) {
+    const unlocked = isUnlocked(state, level.id);
+    const best = state.best[level.id];
+    const article = h('article', { 'data-locked': String(!unlocked) });
+    article.append(h('h3', {}, h('span', {}, `Level ${level.id} — `), level.name));
+    article.append(h('p', {}, unlocked ? level.brief : 'Locked. Clear the previous level to open it.'));
+    article.append(h('p', {}, unlocked ? level.controls : ''));
+    if (best) article.append(h('p', {}, `Best: ${best.toLocaleString('en-US')}`));
+    els.howtoGrid.append(article);
+  }
+}
+
+function renderTouchbar(levelId) {
+  els.touchbar.replaceChildren();
+  const controls = TOUCH_CONTROLS[levelId] || [];
+  const coarse =
+    window.matchMedia('(pointer: coarse)').matches ||
+    navigator.maxTouchPoints > 0 ||
+    'ontouchstart' in window;
+  els.touchbar.hidden = !coarse || !controls.length;
+  if (els.touchbar.hidden) return;
+
+  for (const control of controls) {
+    const btn = h('button', { type: 'button' }, control.label);
+    btn.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      engine.input.virtualPress(control.code);
+    });
+    const release = () => engine.input.virtualRelease(control.code);
+    btn.addEventListener('pointerup', release);
+    btn.addEventListener('pointerleave', release);
+    btn.addEventListener('pointercancel', release);
+    els.touchbar.append(btn);
+  }
+}
+
+function syncSound() {
+  els.soundBtn.setAttribute('aria-pressed', String(state.sound));
+  els.soundBtn.classList.toggle('muted', !state.sound);
+  audio.setEnabled(state.sound);
+}
+
+/* ------------------------------------------------------------------ */
+/* Boot                                                                */
+/* ------------------------------------------------------------------ */
+
+function boot() {
+  audio = createAudio(state.sound);
+  engine = new Engine(els.canvas, { onHud, announce, audio });
+  engine.hooks.onLevelEnd = onLevelEnd;
+  els.canvas.tabIndex = 0;
+
+  els.soundBtn.addEventListener('click', () => {
+    state = { ...state, sound: !state.sound };
+    save(state);
+    syncSound();
+    if (state.sound) {
+      audio.unlock();
+      audio.play('pick');
+    }
+    announce(state.sound ? 'Sound on.' : 'Sound off.');
+  });
+
+  window.addEventListener('keydown', (e) => {
+    if (e.target instanceof HTMLButtonElement && (e.code === 'Space' || e.code === 'Enter')) return;
+    if (e.code === 'KeyP' && current) {
+      e.preventDefault();
+      if (els.overlay.hidden) {
+        engine.setPaused(true);
+        showPause();
+      } else {
+        resume();
+      }
+    } else if (e.code === 'Escape' && current) {
+      e.preventDefault();
+      showMenu();
+    }
+  });
+
+  els.canvas.addEventListener('pointerdown', () => audio.unlock(), { once: true });
+
+  syncSound();
+  syncNav();
+  renderHowto();
+  showMenu();
+  engine.start();
+}
+
+boot();
+
+return {  };
+};
+
+__require('src/main.js');
+</script>
+</body>
+</html>
