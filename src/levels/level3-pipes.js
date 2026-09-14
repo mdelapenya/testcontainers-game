@@ -278,7 +278,7 @@ class PipeDreamLevel {
   /** The test bench on the host side, wired into the first cell. */
   drawHost(ctx) {
     const y = this.gy + this.spec.srcRow * this.cell + this.cell / 2;
-    panel(ctx, 40, 120, 196, 104, { fill: 'rgba(41,26,63,.92)', radius: 12 });
+    panel(ctx, 40, 120, 196, 104, { fill: 'rgba(8,26,46,.92)', radius: 12 });
     text(ctx, 'YOUR TEST · THE HOST', 56, 142, { size: 11, weight: 800, color: C.slate, font: MONO });
     text(ctx, '@Test void queries()', 56, 164, { size: 12, weight: 600, color: C.cream, font: MONO });
     text(ctx, `db.getMappedPort(${this.spec.port})`, 56, 184, { size: 12, weight: 600, color: C.cream, font: MONO });
@@ -305,7 +305,7 @@ class PipeDreamLevel {
   drawBoard(ctx) {
     const { cols, rows } = this.spec;
     panel(ctx, this.gx - 8, this.gy - 8, cols * this.cell + 16, rows * this.cell + 16, {
-      fill: 'rgba(41,26,63,.86)', radius: 14,
+      fill: 'rgba(8,26,46,.86)', radius: 14,
     });
     for (let y = 0; y < rows; y++) {
       for (let x = 0; x < cols; x++) this.drawCell(ctx, x, y);
@@ -361,7 +361,7 @@ class PipeDreamLevel {
     });
     const chip = `published :${this.spec.port}`;
     const chipW = chip.length * 6.6 + 18;
-    panel(ctx, wx - chipW / 2, this.gy - 30, chipW, 18, { fill: 'rgba(22,214,199,.9)', stroke: 'rgba(41,26,63,.4)', radius: 9 });
+    panel(ctx, wx - chipW / 2, this.gy - 30, chipW, 18, { fill: 'rgba(22,214,199,.9)', stroke: 'rgba(8,26,46,.4)', radius: 9 });
     text(ctx, chip, wx, this.gy - 20, {
       size: 10, weight: 800, color: C.navyDeep, align: 'center', baseline: 'middle', font: MONO,
     });
@@ -377,7 +377,7 @@ class PipeDreamLevel {
         ctx.stroke();
         continue;
       }
-      ctx.fillStyle = 'rgba(41,26,63,.96)';
+      ctx.fillStyle = 'rgba(8,26,46,.96)';
       ctx.fillRect(wx - 5, y0, 10, this.cell);
       ctx.save();
       ctx.beginPath();
@@ -431,7 +431,7 @@ class PipeDreamLevel {
   }
 
   drawStrip(ctx) {
-    panel(ctx, STRIP.x, STRIP.y, STRIP.w, STRIP.h, { fill: 'rgba(41,26,63,.95)', radius: 12 });
+    panel(ctx, STRIP.x, STRIP.y, STRIP.w, STRIP.h, { fill: 'rgba(8,26,46,.95)', radius: 12 });
     text(ctx, this.toast.title, STRIP.x + 20, STRIP.y + 24, { size: 15, weight: 800, color: this.toast.tone });
     const lines = wrap(this.toast.body, 88).slice(0, 2);
     lines.forEach((line, i) => {

@@ -1,9 +1,9 @@
 /** Shared canvas art: palette, primitives and the cast (containers, whale, gull). */
 
 const C = {
-  // Official site colors, mapped to the existing scenery roles (docs/branding.md).
-  navy:      '#361e5b', // plum
-  navyDeep:  '#291a3f', // eggplant
+  // Navy game surfaces with official site accents (docs/branding.md).
+  navy:      '#0e2a47',
+  navyDeep:  '#081a2e',
   cream:     '#f7f9fd', // ghost
   sky1:      '#d1ebff', // tc-blue-200
   sky2:      '#edf7ff', // tc-blue-100
@@ -65,7 +65,7 @@ function text(ctx, str, x, y, opts = {}) {
 }
 
 function panel(ctx, x, y, w, h, opts = {}) {
-  const { fill = 'rgba(41,26,63,.72)', stroke = 'rgba(255,255,255,.16)', radius = 12, lineWidth = 1, alpha = 1 } = opts;
+  const { fill = 'rgba(8,26,46,.72)', stroke = 'rgba(255,255,255,.16)', radius = 12, lineWidth = 1, alpha = 1 } = opts;
   ctx.save();
   ctx.globalAlpha = alpha;
   roundRect(ctx, x, y, w, h, radius);
@@ -223,7 +223,7 @@ function drawContainer(ctx, x, y, w, h, color, opts = {}) {
   if (label) {
     const plateW = Math.min(w - 12, label.length * 7.2 + 14);
     roundRect(ctx, x + (w - plateW) / 2, y + h / 2 - 10, plateW, 20, 4);
-    ctx.fillStyle = 'rgba(41,26,63,.8)';
+    ctx.fillStyle = 'rgba(8,26,46,.8)';
     ctx.fill();
     text(ctx, label, x + w / 2, y + h / 2 + 1, {
       size: 12, weight: 700, color: C.cream, align: 'center', baseline: 'middle', font: MONO,
@@ -352,7 +352,7 @@ function drawBanner(ctx, w, y, title, subtitle, color) {
   ctx.restore();
   const width = Math.min(w - 60, Math.max(480, measured + 48));
   const x = (w - width) / 2;
-  panel(ctx, x, y, width, subtitle ? 84 : 56, { fill: 'rgba(41,26,63,.9)', stroke: color, lineWidth: 2, radius: 14 });
+  panel(ctx, x, y, width, subtitle ? 84 : 56, { fill: 'rgba(8,26,46,.9)', stroke: color, lineWidth: 2, radius: 14 });
   text(ctx, title, w / 2, y + 32, { size: 24, weight: 800, color, align: 'center' });
   if (subtitle) {
     text(ctx, subtitle, w / 2, y + 62, { size: 14, weight: 500, color: C.cream, align: 'center' });

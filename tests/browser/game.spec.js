@@ -26,7 +26,7 @@ test('the built app loads its styles, four levels, and initial menu', async ({ p
   await expect(page.locator('#levelnav button').first()).toBeEnabled();
   await expect(page.locator('#levelnav button').nth(1)).toBeDisabled();
   await expect(page.locator('meta[name="description"]')).toHaveAttribute('content', /four-level/);
-  await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(41, 26, 63)');
+  await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(8, 26, 46)');
   await expect(page.locator('body')).toHaveCSS('font-family', /Rubik/);
   expect(await page.locator('.brand-mark').evaluate((img) => img.complete && img.naturalWidth > 0)).toBe(true);
   // Canvas labels use Roboto Mono, so verify that both local font families load.

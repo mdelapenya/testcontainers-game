@@ -32,8 +32,8 @@ Colors are taken from
 | Topaz | `#00BAC2` | Available CSS brand token |
 | Pacific | `#17A6B2` | Sea and cube |
 | Teal | `#027F9E` | Sea shading and cube |
-| Eggplant | `#291A3F` | Page and canvas panel backgrounds |
-| Plum | `#361E5B` | Raised surfaces, dark canvas text, and cube outline |
+| Eggplant | `#291A3F` | Canvas ink and available CSS brand token |
+| Plum | `#361E5B` | Cube outline and illustration shading |
 | Violet | `#6638F2` | Primary buttons and purple game pieces |
 | Ghost | `#F7F9FD` | Main text |
 | Mist | `#E7EAFB` | Supporting text |
@@ -44,7 +44,9 @@ The interface tokens live in `styles/game.css`; canvas equivalents live in
 `src/draw.js`. Keep their shared colors in sync when changing the theme.
 The green, red, amber, and orange gameplay colors are retained from the game
 to distinguish success, failure, warnings, and services. These are game-specific
-colors, not additional Testcontainers brand colors.
+colors, not additional Testcontainers brand colors. Page and canvas panel
+backgrounds use the game's navy `#081A2E` and `#0E2A47`, with a `#14375C`
+page glow, to keep violet concentrated in buttons and small accents.
 
 ## Attribution
 

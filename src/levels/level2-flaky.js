@@ -275,7 +275,7 @@ class FlakyDetectiveLevel {
     const can = this.board.canRerun();
     this.rerunRect = { x, y: 48, w, h: 30 };
     panel(ctx, x, 48, w, 30, {
-      fill: can ? C.teal : 'rgba(54,30,91,.35)', stroke: 'transparent', radius: 8,
+      fill: can ? C.teal : 'rgba(14,42,71,.35)', stroke: 'transparent', radius: 8,
     });
     text(ctx, `RE-RUN (R) · ${this.board.rerunsLeft} left`, x + w / 2, 68, {
       size: 12, weight: 800, color: can ? C.navyDeep : 'rgba(247,249,253,.55)', align: 'center',
@@ -292,7 +292,7 @@ class FlakyDetectiveLevel {
     const n = this.board.runs.length;
     this.col = Math.min(GRID.maxCol, Math.floor((room + GRID.gap) / n) - GRID.gap);
     this.colStart = left + Math.max(0, Math.round((room - (n * (this.col + GRID.gap) - GRID.gap)) / 2));
-    panel(ctx, GRID.x, top, GRID.w, h, { fill: 'rgba(41,26,63,.95)', radius: 12 });
+    panel(ctx, GRID.x, top, GRID.w, h, { fill: 'rgba(8,26,46,.95)', radius: 12 });
     this.drawArmedColumns(ctx, top, h);
 
     this.board.runs.forEach((run, i) => {
@@ -390,7 +390,7 @@ class FlakyDetectiveLevel {
 
   drawToast(ctx) {
     const y = TOAST_Y;
-    panel(ctx, GRID.x, y, GRID.w, TOAST_H, { fill: 'rgba(41,26,63,.88)', radius: 10 });
+    panel(ctx, GRID.x, y, GRID.w, TOAST_H, { fill: 'rgba(8,26,46,.88)', radius: 10 });
     text(ctx, this.toast.title, GRID.x + 18, y + 17, { size: 13.5, weight: 800, color: this.toast.tone });
     wrap(this.toast.body, 100).slice(0, 2).forEach((line, i) => {
       text(ctx, line, GRID.x + 18, y + 34 + i * 15, {
@@ -412,7 +412,7 @@ class FlakyDetectiveLevel {
       const x = 40 + i * (w + 10);
       const armed = this.armed === key;
       panel(ctx, x, y, w, 76, {
-        fill: armed ? 'rgba(244,185,66,.22)' : 'rgba(41,26,63,.72)',
+        fill: armed ? 'rgba(244,185,66,.22)' : 'rgba(8,26,46,.72)',
         stroke: armed ? C.amber : 'rgba(255,255,255,.22)',
         radius: 9,
       });

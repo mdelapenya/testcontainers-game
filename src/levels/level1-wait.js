@@ -211,7 +211,7 @@ class WaitStrategiesLevel {
       const on = mine && fires != null && this.clock >= fires;
       const bx = 96 + i * 78;
       panel(ctx, bx, 328, 74, 26, {
-        fill: on ? 'rgba(59,178,115,.9)' : 'rgba(41,26,63,.55)',
+        fill: on ? 'rgba(59,178,115,.9)' : 'rgba(8,26,46,.55)',
         stroke: mine ? C.cream : 'rgba(255,255,255,.2)',
         radius: 8,
       });
@@ -227,7 +227,7 @@ class WaitStrategiesLevel {
     const y = 120;
     const w = 500;
     const h = 200;
-    panel(ctx, x, y, w, h, { fill: 'rgba(41,26,63,.88)', radius: 12 });
+    panel(ctx, x, y, w, h, { fill: 'rgba(8,26,46,.88)', radius: 12 });
     text(ctx, `$ docker logs -f ${this.spec.service}`, x + 16, y + 26, {
       size: 12, weight: 600, color: C.teal, font: MONO,
     });
@@ -264,7 +264,7 @@ class WaitStrategiesLevel {
 
   drawChoice(ctx) {
     const W = 960;
-    panel(ctx, 40, 348, W - 80, 158, { fill: 'rgba(41,26,63,.9)', radius: 14 });
+    panel(ctx, 40, 348, W - 80, 158, { fill: 'rgba(8,26,46,.9)', radius: 14 });
     text(ctx, `HOW SHOULD TESTCONTAINERS WAIT FOR ${this.spec.service.toUpperCase()}?`, W / 2, 374, {
       size: 13, weight: 800, color: C.teal, align: 'center', letterSpacing: '2px',
     });
@@ -292,7 +292,7 @@ class WaitStrategiesLevel {
     const W = 960;
     const s = STRATEGIES[this.strategy];
     const limit = timeoutAt(this.spec);
-    panel(ctx, 80, 372, W - 160, 120, { fill: 'rgba(41,26,63,.9)', radius: 14 });
+    panel(ctx, 80, 372, W - 160, 120, { fill: 'rgba(8,26,46,.9)', radius: 14 });
 
     text(ctx, 'WAITING', 110, 402, { size: 12, weight: 800, color: C.teal, letterSpacing: '2px' });
     text(ctx, s.call, 110, 428, { size: 14, weight: 600, color: C.cream, font: MONO });
@@ -316,7 +316,7 @@ class WaitStrategiesLevel {
     const tone = TONE[o.verdict];
     drawBanner(ctx, W, 186, TITLE[o.verdict], this.detail(), tone);
 
-    panel(ctx, 80, 366, W - 160, 136, { fill: 'rgba(41,26,63,.92)', radius: 14 });
+    panel(ctx, 80, 366, W - 160, 136, { fill: 'rgba(8,26,46,.92)', radius: 14 });
     text(ctx, STRATEGIES[this.strategy].call, 108, 396, {
       size: 13, weight: 700, color: tone, font: MONO,
     });
