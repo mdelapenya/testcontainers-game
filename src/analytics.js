@@ -1,4 +1,5 @@
 import { inject } from '@vercel/analytics';
+import { injectSpeedInsights } from '@vercel/speed-insights';
 
 function isIpv4Loopback(hostname) {
   const parts = hostname.split('.');
@@ -43,4 +44,5 @@ export function initAnalytics(hostname) {
   const host = hostname ?? (typeof window !== 'undefined' ? window.location.hostname : '');
   if (!host || isLocalPreviewHost(host)) return;
   inject();
+  injectSpeedInsights();
 }
