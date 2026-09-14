@@ -9,164 +9,185 @@ import { range } from './rng.js';
 /* Level 1 — Wait strategies                                           */
 /* ================================================================== */
 
-/**
- * The four things people actually do while waiting for a container. Only the
- * first three are wait strategies; the sleep is here because everyone has
- * written it at least once.
- */
+/** Go wait strategies. Each scenario offers four relevant choices. */
 const STRATEGIES = {
   port: {
-    key: 'port', name: 'Listening port',
-    call: 'Wait.forListeningPort()',
-    hint: 'Continue as soon as the port accepts a socket.',
-    caption: 'fast, and famously a liar',
+    key: 'port', name: 'Listening port', call: 'wait.ForListeningPort(port)',
+    hint: 'Probe the internal and host-mapped listening port.',
+    caption: 'network readiness baseline',
   },
   log: {
-    key: 'log', name: 'Log message',
-    call: 'Wait.forLogMessage(line, times)',
-    hint: 'Continue when the readiness line shows up in the logs.',
-    caption: 'exact, if you know the line',
+    key: 'log', name: 'Log alone', call: 'wait.ForLog(line)',
+    hint: 'Match a startup message without checking the service.',
+    caption: 'text can change with versions',
   },
   http: {
-    key: 'http', name: 'HTTP endpoint',
-    call: 'Wait.forHttp(path).forStatusCode(200)',
-    hint: 'Poll an endpoint until the service answers it.',
-    caption: 'robust, costs you a poll interval',
+    key: 'http', name: 'HTTP readiness', call: 'wait.ForHTTP(path)',
+    hint: 'Check the HTTP response the test actually needs.',
+    caption: 'status and body can be checked',
+  },
+  sql: {
+    key: 'sql', name: 'SQL query', call: 'wait.ForSQL(port, driver, dbURL)',
+    hint: 'Connect through the mapped port and run SELECT 1.',
+    caption: 'exercise the database protocol',
+  },
+  exec: {
+    key: 'exec', name: 'Exec probe', call: 'wait.ForExec(command)',
+    hint: 'Run a readiness command and check its exit code.',
+    caption: 'choose a meaningful command',
+  },
+  health: {
+    key: 'health', name: 'Healthcheck', call: 'wait.ForHealthCheck()',
+    hint: 'Wait for the configured Docker HEALTHCHECK to pass.',
+    caption: 'requires a real healthcheck',
+  },
+  all: {
+    key: 'all', name: 'Port + log', call: 'wait.ForAll(portWait, logWait)',
+    hint: 'Require a port check and the expected startup logs.',
+    caption: 'both checks must pass',
   },
   sleep: {
-    key: 'sleep', name: 'Fixed sleep',
-    call: 'Thread.sleep(5000)',
-    hint: 'Wait five seconds and hope for the best.',
-    caption: 'green locally, red on CI',
+    key: 'sleep', name: 'Fixed sleep', call: 'time.Sleep(5 * time.Second)',
+    hint: 'Wait five seconds without checking anything.',
+    caption: 'a delay is not a readiness check',
   },
 };
 
 /**
- * One entry per service. `readyAt` is when the service can genuinely serve a
- * test; `fires[strategy]` is when that strategy would let the test start
- * (null when the strategy simply does not apply). Everything the player is
- * scored on derives from those two numbers, so a round has no reflex in it.
+ * Teaching scenarios, not measured startup times or default module behavior.
+ * The contract is shown before choosing. Timings model that particular setup.
+ * `fragile` choices can pass this run without providing a durable readiness check.
+ * `checks` supplies scenario-specific Go snippets; identifiers are placeholders.
  */
 const CATALOG = [
   {
     service: 'postgres', image: 'postgres:16-alpine',
+    contract: 'This setup needs the final TCP listener AND the second startup message. The module combines both checks; the bootstrap log alone is not enough.',
+    choices: ['port', 'log', 'all', 'sleep'],
+    checks: {
+      port: { call: 'wait.ForListeningPort("5432/tcp")' },
+      log: { call: 'wait.ForLog(line)' },
+      all: { hint: 'Port 5432 plus ForLog(line).WithOccurrence(2).', call: 'wait.ForAll(portWait, logWait)', caption: 'portWait + logWait (2 matches)' },
+    },
     ready: 'database system is ready to accept connections',
-    noise: [
-      'starting PostgreSQL 16.2 on x86_64-pc-linux-musl',
-      'listening on IPv4 address "0.0.0.0", port 5432',
-      'database system was shut down at 10:02:11 UTC',
-      'checkpoint starting: end-of-recovery immediate',
-    ],
+    noise: ['initialising database files', 'starting temporary bootstrap server', 'stopping temporary bootstrap server'],
     readyAt: 3.0,
-    fires: { port: 1.1, log: 3.0, http: null, sleep: 5.0 },
+    logEvents: [1.1, 3.0],
+    fires: { port: 2.8, log: 1.1, all: 3.2, sleep: 5.0 },
     why: {
-      port: 'Postgres opens 5432 for its own bootstrap, then shuts it down and '
-        + 'starts again. The socket is up long before the database will answer you.',
-      log: 'The readiness line is the honest signal — and it is printed twice, '
-        + 'so the module asks for it with withTimes(2).',
-      http: 'Postgres speaks its own wire protocol. There is no HTTP endpoint to poll.',
-      sleep: 'It passes, and it burns two seconds of every test run for nothing.',
+      port: 'The listener alone does not satisfy this setup: the final startup signal is still missing. Keep the port probe and combine the two requirements.',
+      log: 'This is the bootstrap message. A standalone text match can release the test early and can break when the image changes its wording.',
+      all: 'Both required signals passed. The log is supporting evidence alongside a listening-port check, with the expected occurrence count for this image.',
+      sleep: 'This run passes but wastes two seconds. A fixed delay never checks either readiness requirement.',
     },
   },
   {
     service: 'redis', image: 'redis:7-alpine',
+    contract: 'A fresh Redis instance with no dataset to restore. This test only needs its TCP listener. No Docker HEALTHCHECK is configured.',
+    choices: ['log', 'health', 'port', 'sleep'],
+    fragile: ['log'],
+    checks: { port: { call: 'wait.ForListeningPort("6379/tcp")' } },
     ready: 'Ready to accept connections tcp',
-    noise: [
-      'oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo',
-      'Redis version=7.2.4, bits=64, just started',
-      'Running mode=standalone, port=6379',
-      'Server initialized',
-    ],
+    noise: ['Redis is starting', 'Running mode=standalone, port=6379', 'Server initialized'],
     readyAt: 1.8,
-    fires: { port: 1.65, log: 1.8, http: null, sleep: 5.0 },
+    fires: { port: 1.8, log: 1.8, health: null, sleep: 5.0 },
     why: {
-      port: 'Redis binds 6379 before it finishes loading the dataset. The gap is '
-        + 'small on your laptop and exactly wide enough on a busy CI box.',
-      log: '"Ready to accept connections" means it, which is why the module waits for it.',
-      http: 'RESP is not HTTP. The poll would never get a 200.',
-      sleep: '3.2 seconds of nothing, on every single test.',
+      port: 'The internal and external port probes satisfy this connection-only test. If the test needed Redis commands or loaded data, probe those as well.',
+      log: 'It passes this run, but depends on a version-specific message. A listening-port check directly tests the contract and avoids scraping log text.',
+      health: 'No Docker HEALTHCHECK exists in this setup. ForHealthCheck does not invent a probe; configure one or use the listening port.',
+      sleep: '3.2 seconds wasted, with no readiness check. A slower startup would still break the test.',
     },
   },
   {
     service: 'nginx', image: 'nginx:1.27-alpine',
+    contract: 'Nginx accepts TCP while its upstream is still starting. The test needs GET /ready to return 200 after the upstream becomes available.',
+    choices: ['http', 'port', 'log', 'sleep'],
+    checks: { http: { call: 'wait.ForHTTP("/ready").WithPort("80/tcp")' }, port: { call: 'wait.ForListeningPort("80/tcp")' } },
     ready: 'start worker processes',
-    noise: [
-      'using the "epoll" event method',
-      'nginx/1.27.0',
-      'built by gcc 13.2.1',
-      'OS: Linux 6.6.32-linuxkit',
-    ],
-    readyAt: 1.0,
-    fires: { port: 1.0, log: 1.35, http: 1.6, sleep: 5.0 },
+    noise: ['loading proxy configuration', 'starting nginx', 'upstream connection refused'],
+    readyAt: 3.0,
+    fires: { port: 1.0, log: 1.35, http: 3.2, sleep: 5.0 },
     why: {
-      port: 'Static nginx serves the moment it binds 80. Here the port really is '
-        + 'the readiness signal, and it is the cheapest one.',
-      log: 'Works, but you paid for a log scan to learn what the socket already told you.',
-      http: 'Also correct, and worth it the day something real is served behind it — '
-        + 'you just pay one poll interval.',
-      sleep: 'Four wasted seconds guarding a container that was up in one.',
+      port: 'The proxy socket is reachable, but the upstream still fails. This HTTP test needs an application-level response, not just a TCP connection.',
+      log: 'Worker startup says nothing about the upstream response. Probe the endpoint that represents readiness for this test.',
+      http: 'The configured readiness endpoint returned 200. A response-body matcher can add a stronger contract when status alone is insufficient.',
+      sleep: 'Two seconds wasted on this run. The delay neither checks the upstream nor adapts when startup takes longer.',
     },
   },
   {
     service: 'keycloak', image: 'quay.io/keycloak/keycloak:25.0',
-    ready: 'Keycloak 25.0.0 on JVM started in 7.2s, listening on :8080',
-    noise: [
-      'Updating the configuration and installing your custom providers',
-      'Importing realm "test" from file',
-      'Hibernate ORM core version 6.4.4.Final',
-      'Database JDBC URL [jdbc:h2:mem:keycloakdb]',
-    ],
+    contract: 'Health endpoints are enabled on management port 9000. The test needs /health/ready to return 200. No Docker HEALTHCHECK is configured.',
+    choices: ['health', 'log', 'port', 'http'],
+    checks: { http: { call: 'wait.ForHTTP("/health/ready").WithPort("9000/tcp")' }, port: { call: 'wait.ForListeningPort("8080/tcp")' } },
+    ready: 'Keycloak started; listening on :8080',
+    noise: ['loading configuration', 'connecting to the database', 'starting management interface'],
     readyAt: 8.0,
-    fires: { port: 2.4, log: 7.4, http: 8.2, sleep: 5.0 },
+    fires: { port: 2.4, log: 7.4, http: 8.2, health: null },
     why: {
-      port: '8080 is bound while the realm import is still running. Your first '
-        + 'token request meets a half-built server.',
-      log: 'The banner prints while the realm import is still running. A log line '
-        + 'only helps when the service publishes it as a readiness contract, and this one is not.',
-      http: '/health/ready is the contract Keycloak publishes for exactly this '
-        + 'question. It is the only signal here that is true when it says so.',
-      sleep: 'Five seconds is not eight. This is the flake that only shows up in CI.',
+      port: 'The application socket does not establish that the configured readiness checks have passed. Poll the management readiness endpoint.',
+      log: 'The banner is startup information, not the readiness response this test requires. It can also change with the image version.',
+      http: 'The enabled readiness endpoint returned 200 on port 9000. Select the management port explicitly instead of polling the application port by accident.',
+      health: 'An HTTP health endpoint is not a Docker HEALTHCHECK. This setup provides the former but does not configure the latter.',
     },
   },
   {
     service: 'kafka', image: 'confluentinc/cp-kafka:7.6.0',
-    ready: '[KafkaServer id=1] started (kafka.server.KafkaServer)',
-    noise: [
-      'Awaiting socket connections on 0.0.0.0:9092',
-      'Registered broker 1 at path /brokers/ids/1',
-      'Session establishment complete on zookeeper:2181',
-      '[KafkaServer id=1] starting (kafka.server.KafkaServer)',
-    ],
+    contract: 'This test needs broker metadata from inside the container. The image includes kafka-broker-api-versions; its exit status checks that request.',
+    choices: ['log', 'exec', 'port', 'sleep'],
+    checks: {
+      port: { call: 'wait.ForListeningPort("9092/tcp")' },
+      exec: { call: 'wait.ForExec(metadataCommand)', hint: 'Run kafka-broker-api-versions against localhost:9092.', caption: 'metadataCommand: broker query' },
+    },
+    ready: 'KafkaServer started',
+    noise: ['starting broker', 'binding listener on :9092', 'registering broker metadata'],
     readyAt: 5.2,
-    fires: { port: 1.9, log: 5.2, http: null, sleep: 5.0 },
+    fires: { port: 1.9, log: 4.8, exec: 5.6, sleep: 5.0 },
     why: {
-      port: '9092 is listening while the broker is still joining the cluster. '
-        + 'Producing to it gets you a metadata error, not a green test.',
-      log: 'The broker says "started" once it means it. Wait for that line.',
-      http: 'The broker port speaks the Kafka protocol, not HTTP.',
-      sleep: 'Five seconds against a 5.2 second boot. You lose that coin flip in CI.',
+      port: 'An open broker socket does not prove that a metadata request can succeed yet. Probe the protocol needed by this test.',
+      log: 'The startup banner arrives before metadata is available in this scenario. It is not a substitute for the broker query.',
+      exec: 'The metadata command exited successfully. This proves the internal query works; a host-side client would also need mapped-port and advertised-listener checks.',
+      sleep: 'Five seconds is shorter than this startup. A probe can retry until success or a bounded timeout instead of guessing.',
     },
   },
   {
     service: 'mysql', image: 'mysql:8.0',
-    ready: 'ready for connections. Version: 8.0.36',
-    noise: [
-      'InnoDB initialization has started',
-      'Initializing database files, this may take a while',
-      'Temporary server started',
-      'Temporary server stopped',
-    ],
+    contract: 'The test must connect to its database through the mapped port and execute SELECT 1. Startup logs do not verify that client connection.',
+    choices: ['port', 'sql', 'sleep', 'log'],
+    fragile: ['log'],
+    checks: { port: { call: 'wait.ForListeningPort("3306/tcp")' }, sql: { call: 'wait.ForSQL("3306/tcp", "mysql", dbURL)' } },
+    ready: 'ready for connections',
+    noise: ['initializing data directory', 'starting temporary server', 'starting final server'],
     readyAt: 6.5,
-    fires: { port: 2.2, log: 6.5, http: null, sleep: 5.0 },
+    fires: { port: 6.3, log: 6.5, sql: 6.8, sleep: 5.0 },
     why: {
-      port: 'The entrypoint starts a temporary server to initialise the data '
-        + 'directory, then stops it. You connect to a database that is about to vanish.',
-      log: 'The second "ready for connections" is the real one — the module counts them.',
-      http: 'MySQL has no HTTP endpoint on 3306.',
-      sleep: 'Six and a half seconds of boot against a five second guess.',
+      port: 'The socket accepts connections before this database query succeeds. Keep network readiness as a baseline and check SQL for this contract.',
+      log: 'It passes this run, but the text match does not validate the database, credentials, or mapped client connection. Use the SQL probe instead.',
+      sql: 'A connection through dbURL and the mapped port passed the SQL probe. Supply the driver and credentials; SELECT 1 is the default query.',
+      sleep: 'The database takes 6.5 seconds here. Sleeping for five seconds sends the test in too early.',
+    },
+  },
+  {
+    service: 'nginx', image: 'demo/nginx-health:1',
+    contract: 'A custom image defines a Docker HEALTHCHECK that validates its HTTP response. This test requires Docker to report healthy, not merely a bound port.',
+    choices: ['sleep', 'port', 'log', 'health'],
+    checks: { port: { call: 'wait.ForListeningPort("80/tcp")' } },
+    ready: 'start worker processes',
+    noise: ['loading custom configuration', 'health status: starting', 'checking application response'],
+    readyAt: 2.6,
+    fires: { port: 1.0, log: 1.2, health: 2.6, sleep: 5.0 },
+    why: {
+      port: 'TCP is reachable before the image healthcheck passes. This test explicitly requires the configured health status.',
+      log: 'The startup log does not report the outcome of the Docker HEALTHCHECK. Let the existing probe determine readiness.',
+      health: 'The custom image already defines the required probe. ForHealthCheck waits for Docker to report healthy; it does not scrape application logs.',
+      sleep: '2.4 seconds wasted on this run. Poll the existing healthcheck instead of assuming it will have finished.',
     },
   },
 ];
+
+/** Resolve the exact probe shown for a particular scenario. */
+function strategyFor(spec, key) {
+  return { ...STRATEGIES[key], ...spec.checks?.[key] };
+}
 
 const L1 = {
   ROUNDS: 5,
@@ -183,6 +204,8 @@ const L1 = {
   POINTS_PER_SECOND: 160,
   MIN_POINTS: 60,
   SLOW_POINTS: 40,
+  /** Passing once is worth less than a check of the required readiness contract. */
+  FRAGILE_POINTS: 50,
 };
 
 /** Verdicts that mean the suite went red, and cost a life. */
@@ -208,6 +231,9 @@ function evaluateChoice(spec, strategy) {
   if (wasted > L1.SLOW_AFTER) {
     return { strategy, verdict: 'slow', firedAt, wasted, points: L1.SLOW_POINTS, why };
   }
+  if (spec.fragile?.includes(strategy)) {
+    return { strategy, verdict: 'fragile', firedAt, wasted, points: L1.FRAGILE_POINTS, why };
+  }
   return { strategy, verdict: 'green', firedAt, wasted, points: greenPoints(wasted), why };
 }
 
@@ -218,7 +244,7 @@ function greenPoints(wasted) {
 
 /** The strategy this service deserves: highest scoring, ties broken by speed. */
 function bestStrategy(spec) {
-  return Object.keys(STRATEGIES)
+  return (spec.choices || Object.keys(spec.fires))
     .map((key) => evaluateChoice(spec, key))
     .sort((a, b) => b.points - a.points || a.wasted - b.wasted)[0].strategy;
 }
@@ -238,7 +264,7 @@ function roundLength(spec, outcome) {
   return round3((end + 0.5) / L1.PLAY_SPEED);
 }
 
-/** Log lines with timestamps: noise before readiness, the real line exactly at it. */
+/** Startup logs are observations, not a guarantee of application readiness. */
 function buildTimeline(spec, rng) {
   const logAt = spec.fires.log == null ? spec.readyAt : spec.fires.log;
   const lines = [];
@@ -250,8 +276,9 @@ function buildTimeline(spec, rng) {
       kind: 'noise',
     });
   }
-  lines.push({ t: logAt, text: spec.ready, kind: 'ready' });
-  lines.push({ t: logAt + 0.9, text: 'connection accepted from 172.17.0.1', kind: 'noise' });
+  const logEvents = spec.logEvents || [logAt];
+  for (const t of logEvents) lines.push({ t, text: spec.ready, kind: 'ready' });
+  lines.push({ t: logEvents.at(-1) + 0.9, text: 'connection accepted from 172.17.0.1', kind: 'noise' });
   return lines.sort((a, b) => a.t - b.t);
 }
 
@@ -1084,8 +1111,8 @@ const LEVELS = [
     id: 1,
     name: 'Wait strategies',
     tagline: 'Know when a container is actually ready',
-    brief: 'A container boots and a test is waiting for it. You pick the wait strategy; Testcontainers runs the test by itself. Choose wrong and the suite is flaky, slow, or stuck.',
-    controls: 'Keys 1 / 2 / 3 / 4 pick a strategy (or tap a card) · press Space or tap to continue after a result',
+    brief: 'Read what the test needs, then choose its readiness check: a listening port, HTTP, SQL, an exec command, a configured healthcheck, or a combination. Logs can support a port check; a log alone is a fragile fallback. The scenarios use illustrative timings, not startup guarantees for those images.',
+    controls: 'Keys 1 / 2 / 3 / 4 choose the cards shown for this round (or tap one) · press Space or tap to continue after a result',
   },
   {
     id: 2,
@@ -1137,4 +1164,4 @@ function round3(n) {
   return Math.round(n * 1000) / 1000;
 }
 
-export { STRATEGIES, CATALOG, L1, FAILING, evaluateChoice, greenPoints, bestStrategy, costsLife, timeoutAt, roundLength, buildTimeline, probePips, RUN_FLAGS, CAUSES, L2, TEST_NAMES, buildRuns, isSolvable, isRed, FlakyBoard, DIRS, PIECES, L3, rotate, opens, dirOf, PipeGrid, buildPipeGrid, HOSTS, SPOILS, L4, sessionId, HostBoard, hostIsConnected, LEVELS, unlockAfter, totalScore, rank, clamp };
+export { STRATEGIES, strategyFor, CATALOG, L1, FAILING, evaluateChoice, greenPoints, bestStrategy, costsLife, timeoutAt, roundLength, buildTimeline, probePips, RUN_FLAGS, CAUSES, L2, TEST_NAMES, buildRuns, isSolvable, isRed, FlakyBoard, DIRS, PIECES, L3, rotate, opens, dirOf, PipeGrid, buildPipeGrid, HOSTS, SPOILS, L4, sessionId, HostBoard, hostIsConnected, LEVELS, unlockAfter, totalScore, rank, clamp };

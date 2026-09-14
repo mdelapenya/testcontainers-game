@@ -2,7 +2,8 @@
 
 A browser game with four levels about the things that break test suites:
 
-1. **Wait strategies** — choose a container readiness signal.
+1. **Wait strategies** — match the test's contract to a port, HTTP, SQL, exec,
+   healthcheck, or composite check. See [the scenarios and sources](docs/wait-strategies.md).
 2. **The flaky detective** — identify causes from CI run patterns.
 3. **Pipe Dream** — connect the host to a container through a published port.
 4. **Ryuk** — clean up your session's resources without disturbing other builds.

@@ -6,13 +6,14 @@
 
 import { C, MONO, SERVICES, drawBanner, drawClouds, drawContainer, drawGull, drawHarbour, drawSea, drawSky, meter, panel, roundRect, text } from '../draw.js';
 import { mulberry32, randomSeed } from '../rng.js';
-import { CATALOG, L1, STRATEGIES, bestStrategy, buildTimeline, costsLife, evaluateChoice, roundLength, timeoutAt } from '../rules.js';
+import { CATALOG, L1, strategyFor, bestStrategy, buildTimeline, costsLife, evaluateChoice, roundLength, timeoutAt } from '../rules.js';
 const HORIZON = 300;
-const KEYS = { Key1: 'port', Key2: 'log', Key3: 'http', Key4: 'sleep' };
-const TONE = { green: C.green, slow: C.amber, flaky: C.red, unsupported: C.red };
+const PROBES = ['http', 'sql', 'exec', 'health'];
+const TONE = { green: C.green, slow: C.amber, fragile: C.amber, flaky: C.red, unsupported: C.red };
 const TITLE = {
   green: 'Suite green',
   slow: 'Green, but slow',
+  fragile: 'Passed, but fragile',
   flaky: 'Flaky failure',
   unsupported: 'The wait never fired',
 };
@@ -36,7 +37,6 @@ class WaitStrategiesLevel {
     this.cards = [];
     this.startRound();
     this.pushHud();
-    engine.announce('Level 1, wait strategies. Pick the strategy this service deserves with keys 1 to 4.');
   }
 
   pushHud() {
@@ -45,6 +45,7 @@ class WaitStrategiesLevel {
 
   startRound() {
     this.spec = CATALOG[this.order[this.round % this.order.length]];
+    this.choices = this.spec.choices.map((key) => strategyFor(this.spec, key));
     this.lines = buildTimeline(this.spec, this.rng);
     this.shown = [];
     this.strategy = null;
@@ -53,6 +54,12 @@ class WaitStrategiesLevel {
     this.clock = 0;
     this.runFor = 0;
     this.probe = { next: L1.PROBE_START, pips: [], green: false };
+    this.engine.hooks.onControls?.();
+    this.engine.announce(`${this.spec.service}. ${this.spec.contract} ${this.controls.map((c) => c.label).join('. ')}`);
+  }
+
+  get controls() {
+    return this.choices.map((choice, i) => ({ code: `Key${i + 1}`, label: `${i + 1} · ${choice.name}` }));
   }
 
   update(dt) {
@@ -71,7 +78,7 @@ class WaitStrategiesLevel {
     if (this.phase === 'run') {
       this.clock += dt * L1.PLAY_SPEED;
       this.streamLogs();
-      if (this.strategy === 'http') this.streamProbes();
+      if (PROBES.includes(this.strategy)) this.streamProbes();
       this.runFor += dt;
       if (this.runFor >= roundLength(this.spec, this.outcome)) this.reveal();
     } else if (this.phase === 'result') {
@@ -85,13 +92,13 @@ class WaitStrategiesLevel {
       const line = this.lines.shift();
       this.shown.push(line);
       if (this.shown.length > 7) this.shown.shift();
-      if (line.kind === 'ready' && this.strategy === 'log') this.engine.sfx('ready');
     }
   }
 
   streamProbes() {
     while (this.clock >= this.probe.next) {
-      const ok = this.probe.next >= this.spec.readyAt;
+      const firedAt = this.spec.fires[this.strategy];
+      const ok = firedAt != null && this.probe.next + 1e-9 >= firedAt;
       this.probe.pips.push({ t: this.probe.next, ok });
       if (this.probe.pips.length > 8) this.probe.pips.shift();
       if (ok && !this.probe.green) {
@@ -104,7 +111,8 @@ class WaitStrategiesLevel {
 
   onKey(code) {
     if (this.phase === 'choose') {
-      if (KEYS[code]) this.pick(KEYS[code]);
+      const choice = /^Key[1-4]$/.test(code) && this.choices[Number(code.slice(-1)) - 1];
+      if (choice) this.pick(choice.key);
     } else if (this.phase === 'result') {
       this.advance();
     }
@@ -116,7 +124,7 @@ class WaitStrategiesLevel {
     this.outcome = evaluateChoice(this.spec, strategy);
     this.phase = 'run';
     this.engine.sfx('spin');
-    this.engine.announce(`${STRATEGIES[strategy].name}. Running the test.`);
+    this.engine.announce(`${strategyFor(this.spec, strategy).name}. Running the test.`);
   }
 
   reveal() {
@@ -125,7 +133,7 @@ class WaitStrategiesLevel {
     this.resultTimer = 6;
     this.score += points;
 
-    if (verdict === 'green' || verdict === 'slow') {
+    if (!costsLife(verdict)) {
       this.greens += 1;
       this.wasted += wasted;
       this.engine.sfx('pass');
@@ -157,8 +165,8 @@ class WaitStrategiesLevel {
         { label: 'Flaky runs', value: String(this.flakes) },
       ],
       takeaway: won
-        ? 'You never timed anything — you picked a signal and Testcontainers did the waiting. That is the whole point: an open port means something is listening, not that it can serve you.'
-        : 'Red runs come from signals that fire too early, sleeps that guess wrong, or unsupported checks that time out. Pick the readiness signal the service actually publishes.',
+        ? 'Start with network readiness, then check the protocol or health condition your test needs. Keep module-provided waits; logs can complement a port probe in ForAll, but a text match alone is a fragile fallback.'
+        : 'Match the check to the contract: port, HTTP, SQL, exec, or a configured healthcheck. Combine required signals with ForAll. A startup log or a fixed delay does not prove the service is usable.',
     });
   }
 
@@ -205,7 +213,7 @@ class WaitStrategiesLevel {
 
     // One badge per signal; only the chosen one is live, and it lights up when
     // that strategy would have released the test.
-    Object.values(STRATEGIES).forEach((s, i) => {
+    this.choices.forEach((s, i) => {
       const fires = this.spec.fires[s.key];
       const mine = this.strategy === s.key;
       const on = mine && fires != null && this.clock >= fires;
@@ -228,6 +236,16 @@ class WaitStrategiesLevel {
     const w = 500;
     const h = 200;
     panel(ctx, x, y, w, h, { fill: 'rgba(8,26,46,.88)', radius: 12 });
+    if (this.phase === 'choose') {
+      text(ctx, 'WHAT THIS TEST NEEDS', x + 16, y + 28, { size: 13, weight: 700, color: C.teal });
+      wrap(this.spec.contract, 57).forEach((line, i) => {
+        text(ctx, line, x + 16, y + 58 + i * 22, { size: 14, weight: 400, color: C.cream });
+      });
+      text(ctx, 'Choose the check that satisfies this contract.', x + 16, y + h - 18, {
+        size: 11, weight: 500, color: C.slate,
+      });
+      return;
+    }
     text(ctx, `$ docker logs -f ${this.spec.service}`, x + 16, y + 26, {
       size: 12, weight: 600, color: C.teal, font: MONO,
     });
@@ -236,18 +254,18 @@ class WaitStrategiesLevel {
     ctx.clip();
     this.shown.forEach((line, i) => {
       const ly = y + 58 + i * 21;
-      const isReady = line.kind === 'ready' && this.strategy === 'log';
-      if (isReady) {
-        panel(ctx, x + 10, ly - 13, w - 20, 20, { fill: 'rgba(59,178,115,.25)', stroke: 'transparent', radius: 4 });
+      const isMatch = line.kind === 'ready' && (this.strategy === 'log' || this.strategy === 'all');
+      if (isMatch) {
+        panel(ctx, x + 10, ly - 13, w - 20, 20, { fill: 'rgba(244,185,66,.18)', stroke: 'transparent', radius: 4 });
       }
       text(ctx, truncate(line.text, 58), x + 16, ly, {
-        size: 11.5, weight: isReady ? 700 : 400, font: MONO,
-        color: isReady ? C.green : 'rgba(247,249,253,.72)',
+        size: 11.5, weight: isMatch ? 700 : 400, font: MONO,
+        color: isMatch ? C.amber : 'rgba(247,249,253,.72)',
       });
     });
     ctx.restore();
 
-    if (this.strategy === 'http' && this.probe.pips.length) {
+    if (PROBES.includes(this.strategy) && this.probe.pips.length) {
       text(ctx, 'probe', x + 16, y + h + 22, { size: 11, weight: 600, color: C.navy, font: MONO });
       this.probe.pips.forEach((p, i) => {
         const px = x + 62 + i * 22;
@@ -255,7 +273,7 @@ class WaitStrategiesLevel {
         ctx.beginPath();
         ctx.arc(px, y + h + 18, 7, 0, Math.PI * 2);
         ctx.fill();
-        text(ctx, p.ok ? '200' : '503', px, y + h + 36, {
+        text(ctx, p.ok ? 'OK' : 'WAIT', px, y + h + 36, {
           size: 8, weight: 700, color: C.navy, align: 'center', font: MONO, alpha: 0.8,
         });
       });
@@ -269,7 +287,7 @@ class WaitStrategiesLevel {
       size: 13, weight: 800, color: C.teal, align: 'center', letterSpacing: '2px',
     });
 
-    this.cards = Object.values(STRATEGIES).map((s, i) => {
+    this.cards = this.choices.map((s, i) => {
       const w = 205;
       const x = 52 + i * (w + 12);
       const y = 388;
@@ -290,7 +308,7 @@ class WaitStrategiesLevel {
 
   drawRun(ctx) {
     const W = 960;
-    const s = STRATEGIES[this.strategy];
+    const s = strategyFor(this.spec, this.strategy);
     const limit = timeoutAt(this.spec);
     panel(ctx, 80, 372, W - 160, 120, { fill: 'rgba(8,26,46,.9)', radius: 14 });
 
@@ -317,7 +335,7 @@ class WaitStrategiesLevel {
     drawBanner(ctx, W, 186, TITLE[o.verdict], this.detail(), tone);
 
     panel(ctx, 80, 366, W - 160, 136, { fill: 'rgba(8,26,46,.92)', radius: 14 });
-    text(ctx, STRATEGIES[this.strategy].call, 108, 396, {
+    text(ctx, strategyFor(this.spec, this.strategy).call, 108, 396, {
       size: 13, weight: 700, color: tone, font: MONO,
     });
     wrap(o.why, 86).slice(0, 3).forEach((line, i) => {
@@ -326,7 +344,7 @@ class WaitStrategiesLevel {
 
     const best = bestStrategy(this.spec);
     if (best !== this.strategy) {
-      text(ctx, `best answer: ${STRATEGIES[best].call}`, 108, 484, {
+      text(ctx, `best answer: ${strategyFor(this.spec, best).call}`, 108, 484, {
         size: 11.5, weight: 700, color: C.teal, font: MONO,
       });
     } else {
@@ -334,7 +352,7 @@ class WaitStrategiesLevel {
         size: 11.5, weight: 700, color: C.green, font: MONO,
       });
     }
-    text(ctx, 'space or tap to continue', W - 108, 484, {
+    text(ctx, 'space or tap to continue', W - 40, 526, {
       size: 11, weight: 600, color: 'rgba(247,249,253,.45)', align: 'right',
     });
   }
@@ -344,6 +362,7 @@ class WaitStrategiesLevel {
     if (o.verdict === 'unsupported') return `${this.spec.image} never answers that probe · timed out`;
     if (o.verdict === 'flaky') return `Test started ${Math.abs(o.wasted).toFixed(2)}s before ${this.spec.service} was ready`;
     if (o.verdict === 'slow') return `Passed, after ${o.wasted.toFixed(2)}s of dead time · +${o.points}`;
+    if (o.verdict === 'fragile') return `Passed this run; the readiness check is brittle · +${o.points}`;
     return `Started ${o.wasted.toFixed(2)}s after readiness · +${o.points}`;
   }
 }

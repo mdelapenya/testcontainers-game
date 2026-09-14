@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import { mulberry32 } from '../src/rng.js';
 import {
-  CATALOG, STRATEGIES, L1, L2, L3, L4, CAUSES, DIRS, HOSTS,
+  CATALOG, STRATEGIES, strategyFor, L1, L2, L3, L4, CAUSES, DIRS, HOSTS,
   evaluateChoice, bestStrategy, costsLife, timeoutAt, roundLength, buildTimeline, probePips,
   buildRuns, isSolvable, isRed, FlakyBoard, rotate, PipeGrid, buildPipeGrid,
   HostBoard, hostIsConnected, sessionId, unlockAfter, totalScore, rank,
@@ -34,12 +34,60 @@ describe('wait strategies', () => {
     for (const service of CATALOG) {
       const best = evaluateChoice(service, bestStrategy(service));
       assert.equal(best.verdict, 'green', service.service);
-      for (const strategy of Object.keys(STRATEGIES)) {
+      assert.equal(new Set(service.choices).size, 4);
+      assert.ok(service.contract.length > 0);
+      for (const strategy of service.choices) {
+        assert.ok(STRATEGIES[strategy]);
+        assert.ok(strategyFor(service, strategy).call.length > 0);
         const result = evaluateChoice(service, strategy);
         assert.ok(result.why.length > 0);
         assert.ok(best.points >= result.points);
       }
     }
+  });
+
+  test('the recommended check follows each scenario, rather than favouring logs or one key', () => {
+    const expected = ['all', 'port', 'http', 'http', 'exec', 'sql', 'health'];
+    assert.deepEqual(CATALOG.map(bestStrategy), expected);
+    assert.ok(new Set(CATALOG.map((spec) => spec.choices.indexOf(bestStrategy(spec)))).size > 1);
+    for (const spec of CATALOG) {
+      assert.ok(evaluateChoice(spec, bestStrategy(spec)).points > evaluateChoice(spec, 'log').points);
+    }
+  });
+
+  test('standalone logs that pass receive a fragile result without falsely costing a life', () => {
+    for (const service of ['redis', 'mysql']) {
+      const spec = CATALOG.find((spec) => spec.service === service);
+      const result = evaluateChoice(spec, 'log');
+      assert.equal(result.verdict, 'fragile');
+      assert.equal(result.points, L1.FRAGILE_POINTS);
+      assert.equal(costsLife(result.verdict), false);
+      assert.ok(result.points < evaluateChoice(spec, bestStrategy(spec)).points);
+    }
+  });
+
+  test('fragility does not hide early failures or unnecessary delays', () => {
+    const fragile = { ...spec, fragile: ['port', 'sleep'] };
+    assert.equal(evaluateChoice(fragile, 'port').verdict, 'flaky');
+    assert.equal(evaluateChoice(fragile, 'sleep').verdict, 'slow');
+  });
+
+  test('the composed Postgres check waits for both startup messages and the port', () => {
+    const postgres = CATALOG.find((spec) => spec.service === 'postgres');
+    const logs = buildTimeline(postgres, mulberry32(7)).filter((line) => line.kind === 'ready');
+    assert.deepEqual(logs.map((line) => line.t), [1.1, 3.0]);
+    assert.equal(evaluateChoice(postgres, 'log').verdict, 'flaky');
+    assert.ok(postgres.fires.all >= Math.max(postgres.fires.port, logs.at(-1).t));
+    assert.equal(evaluateChoice(postgres, 'all').verdict, 'green');
+  });
+
+  test('Docker healthcheck and HTTP readiness are distinct requirements', () => {
+    const keycloak = CATALOG.find((spec) => spec.service === 'keycloak');
+    assert.equal(evaluateChoice(keycloak, 'health').verdict, 'unsupported');
+    assert.equal(evaluateChoice(keycloak, 'http').verdict, 'green');
+    assert.match(strategyFor(keycloak, 'http').call, /9000\/tcp/);
+    const custom = CATALOG.find((spec) => spec.image === 'demo/nginx-health:1');
+    assert.equal(evaluateChoice(custom, 'health').verdict, 'green');
   });
 
   test('animation duration covers readiness, late strategies, and timeouts', () => {

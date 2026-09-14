@@ -16,7 +16,6 @@ const SCENES = {
 };
 
 const TOUCH_CONTROLS = {
-  1: [{ code: 'Key1', label: 'port' }, { code: 'Key2', label: 'log' }, { code: 'Key3', label: 'http' }, { code: 'Key4', label: 'sleep' }],
   2: [],
   3: [{ code: 'ArrowLeft', label: '←' }, { code: 'ArrowUp', label: '↑' },
     { code: 'ArrowDown', label: '↓' }, { code: 'ArrowRight', label: '→' },
@@ -193,8 +192,8 @@ function run(levelId) {
   audio.unlock();
   current = levelId;
   hideOverlay();
-  renderTouchbar(levelId);
   engine.setScene(new SCENES[levelId]());
+  renderTouchbar(levelId);
   els.canvas.focus({ preventScroll: true });
   syncNav();
 }
@@ -260,7 +259,7 @@ function renderHowto() {
 
 function renderTouchbar(levelId) {
   els.touchbar.replaceChildren();
-  const controls = TOUCH_CONTROLS[levelId] || [];
+  const controls = (engine.scene?.id === levelId && engine.scene.controls) || TOUCH_CONTROLS[levelId] || [];
   const coarse =
     window.matchMedia('(pointer: coarse)').matches ||
     navigator.maxTouchPoints > 0 ||
@@ -296,6 +295,7 @@ function boot() {
   audio = createAudio(state.sound);
   engine = new Engine(els.canvas, { onHud, announce, audio });
   engine.hooks.onLevelEnd = onLevelEnd;
+  engine.hooks.onControls = () => renderTouchbar(current);
   els.canvas.tabIndex = 0;
 
   els.soundBtn.addEventListener('click', () => {
