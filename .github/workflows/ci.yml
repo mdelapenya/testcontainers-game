@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-and-build:
+    name: Test and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Run unit tests with coverage
+        run: npm run test:coverage
+      - name: Build production assets
+        run: npm run build
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Test the production app on desktop and mobile
+        run: npm run test:e2e
+
+# Vercel's Git integration creates deployments from this repository.
+# Require "Test and build" in Vercel Settings > Deployment Checks to gate
+# production promotion on this job. vercel.json also runs unit tests on every
+# Vercel build, including previews. See README.md for the connection steps.
