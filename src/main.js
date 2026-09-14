@@ -3,7 +3,7 @@
  * All the rules live in rules.js; all the drawing lives in the level scenes.
  */
 
-import { inject } from '@vercel/analytics';
+import { initAnalytics } from './analytics.js';
 import { createAudio } from './audio.js';
 import { Engine } from './engine.js';
 import { WaitStrategiesLevel } from './levels/level1-wait.js';
@@ -14,10 +14,7 @@ import { LEVELS, rank, totalScore } from './rules.js';
 import { isUnlocked, load, recordResult, save } from './store.js';
 
 // Initialize Vercel Web Analytics outside local preview/test hosts.
-const host = window.location.hostname;
-const isLocalPreviewHost =
-  host === 'localhost' || host === '::1' || host === '[::1]' || host.startsWith('127.');
-if (!isLocalPreviewHost) inject();
+initAnalytics();
 const SCENES = {
   1: WaitStrategiesLevel, 2: FlakyDetectiveLevel, 3: PipeDreamLevel, 4: RyukLevel,
 };
