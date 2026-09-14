@@ -36,5 +36,5 @@ jobs:
 
 # Vercel's Git integration creates deployments from this repository.
 # Require "Test and build" in Vercel Settings > Deployment Checks to gate
-# production promotion on this job. vercel.json also runs unit tests on every
-# Vercel build, including previews. See README.md for the connection steps.
+# production promotion on this job. Tests run here; Vercel only builds the app.
+# See README.md for the connection steps.

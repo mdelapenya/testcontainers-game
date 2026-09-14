@@ -62,7 +62,7 @@ secrets are required. Connect the project yourself:
 1. Import `mdelapenya/testcontainers-game` into Vercel with project name
    `testcontainers-game`, repository root `./`, and production branch `main`.
 2. Use the **Vite** framework preset and Node.js **24.x**. `vercel.json` specifies
-   `npm ci`, build command `npm run tests && npm run build`, and output `dist`.
+   `npm ci`, build command `npm run build`, and output `dist`.
    Remove conflicting dashboard overrides if you created the project from the
    original standalone HTML commit.
 3. Assign or confirm **testcontainers-game.vercel.app** in the project's domains.
@@ -71,11 +71,11 @@ secrets are required. Connect the project yourself:
    automatic aliasing enabled in the production environment settings.
 
 Pushes to `main` create production deployments; other branches and pull requests
-can create previews through the Git integration. Every Vercel build must pass
-the unit tests. Requiring the GitHub check also prevents production promotion
-until the browser tests and production build pass. Until step 4 is configured,
-Vercel deployments and GitHub CI run independently, so browser test failures
-alone do not block promotion.
+can create previews through the Git integration. Tests run in GitHub Actions;
+Vercel only builds the app. Requiring the GitHub check prevents production
+promotion until the unit tests, browser tests, and production build pass. Until
+step 4 is configured, Vercel deployments and GitHub CI run independently, so
+test failures do not block promotion.
 
 See [Vercel's GitHub integration](https://vercel.com/docs/git/vercel-for-github)
 and [Deployment Checks](https://vercel.com/docs/deployment-checks).
