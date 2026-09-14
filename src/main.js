@@ -14,7 +14,10 @@ import { LEVELS, rank, totalScore } from './rules.js';
 import { isUnlocked, load, recordResult, save } from './store.js';
 
 // Initialize Vercel Web Analytics outside local preview/test hosts.
-if (!['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname)) inject();
+const host = window.location.hostname;
+const isLocalPreviewHost =
+  host === 'localhost' || host === '::1' || host === '[::1]' || host.startsWith('127.');
+if (!isLocalPreviewHost) inject();
 const SCENES = {
   1: WaitStrategiesLevel, 2: FlakyDetectiveLevel, 3: PipeDreamLevel, 4: RyukLevel,
 };
