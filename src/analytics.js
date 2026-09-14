@@ -11,9 +11,22 @@ function isIpv4Loopback(hostname) {
   return octets[0] === 127;
 }
 
+function normaliseHost(hostname) {
+  if (typeof hostname !== 'string') return '';
+  const host = hostname.toLowerCase().trim();
+  if (!host) return '';
+  if (host.startsWith('[')) {
+    const end = host.indexOf(']');
+    return end >= 0 ? host.slice(1, end) : host.slice(1);
+  }
+  const colonCount = (host.match(/:/g) || []).length;
+  if (colonCount === 1 && host.includes('.')) return host.split(':')[0];
+  return host;
+}
+
 export function isLocalPreviewHost(hostname) {
-  if (typeof hostname !== 'string') return false;
-  const host = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  const host = normaliseHost(hostname);
+  if (!host) return false;
   if (host === 'localhost' || host === '::1' || isIpv4Loopback(host)) return true;
   if (!host.startsWith('::ffff:')) return false;
   const mapped = host.slice(7);
