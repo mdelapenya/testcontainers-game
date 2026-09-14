@@ -9,7 +9,7 @@ test('local preview hosts are detected', () => {
 });
 
 test('non-local hosts still inject analytics', () => {
-  for (const host of ['example.com', 'testcontainers-game.vercel.app', '192.168.1.10', '::ffff:192.168.1.10', '::ffff:0808:0808']) {
+  for (const host of ['example.com', 'testcontainers-game.vercel.app', '127.example.com', '192.168.1.10', '::ffff:192.168.1.10', '::ffff:0808:0808']) {
     assert.equal(isLocalPreviewHost(host), false);
   }
 });
